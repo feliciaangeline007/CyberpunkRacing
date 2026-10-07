@@ -4,10 +4,12 @@ namespace CyberpunkRacing
 {
     /// <summary>
     /// Kamera Mengikuti Mobil Sinematik (Chase Camera) untuk Balap Cyberpunk.
-    /// Dilengkapi FOV Dinamis saat mengebut/nitro dan getaran halus untuk sensasi kecepatan arcade.
+    /// Dilengkapi FOV Dinamis saat mengebut/nitro dan getaran halus untuk sensasi kecepatan arcade serta getaran benturan saat menabrak.
     /// </summary>
     public class RacingCamera : MonoBehaviour
     {
+        public static RacingCamera Instance { get; private set; }
+
         public Transform target;
         public Vector3 offset = new Vector3(0f, 2.3f, -5.6f);
         public float positionSmoothness = 12f;
@@ -22,6 +24,12 @@ namespace CyberpunkRacing
 
         private Camera _cam;
         private CarController _car;
+        private float _impactShakeAmount = 0f;
+
+        private void Awake()
+        {
+            Instance = this;
+        }
 
         private void Start()
         {
@@ -30,6 +38,16 @@ namespace CyberpunkRacing
             {
                 _car = target.GetComponent<CarController>();
             }
+            else
+            {
+                _car = FindAnyObjectByType<CarController>();
+                if (_car != null) target = _car.transform;
+            }
+        }
+
+        public void TriggerImpactShake(float amount)
+        {
+            _impactShakeAmount = Mathf.Max(_impactShakeAmount, amount);
         }
 
         private void LateUpdate()
@@ -52,16 +70,21 @@ namespace CyberpunkRacing
                 if (_car.IsNitroActive) targetFov += nitroFovBonus;
                 _cam.fieldOfView = Mathf.Lerp(_cam.fieldOfView, targetFov, 5f * Time.deltaTime);
 
-                // Guncangan kamera saat nitro atau drifting kencang
-                float shake = _car.IsNitroActive ? shakeIntensity : (_car.IsDrifting ? shakeIntensity * 0.4f : 0f);
-                if (shake > 0f)
+                // Redakan guncangan benturan secara bertahap
+                _impactShakeAmount = Mathf.MoveTowards(_impactShakeAmount, 0f, 1.8f * Time.deltaTime);
+
+                // Gabungkan guncangan kecepatan (nitro/drift) dengan guncangan tabrakan
+                float speedShake = _car.IsNitroActive ? shakeIntensity : (_car.IsDrifting ? shakeIntensity * 0.4f : 0f);
+                float totalShake = speedShake + _impactShakeAmount;
+
+                if (totalShake > 0f)
                 {
-                    float t = Time.unscaledTime * 30f;
+                    float t = Time.unscaledTime * 32f;
                     Vector3 shakeOffset = new Vector3(
                         (Mathf.PerlinNoise(t, 0.25f) - 0.5f) * 2f,
                         (Mathf.PerlinNoise(0.75f, t) - 0.5f) * 2f,
                         0f
-                    ) * shake;
+                    ) * totalShake;
                     transform.position += transform.rotation * shakeOffset;
                 }
             }

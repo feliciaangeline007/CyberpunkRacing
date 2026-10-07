@@ -18,6 +18,7 @@ namespace CyberpunkRacing
         private AudioClip _synthWinFanfare;
         private AudioClip _synthCountdownBeep;
         private AudioClip _synthGoBeep;
+        private AudioClip _synthCrashSound;
 
         private void Awake()
         {
@@ -58,12 +59,19 @@ namespace CyberpunkRacing
                 _sfxSource.PlayOneShot(_synthWinFanfare, 0.95f);
         }
 
+        public void PlayCrashSound()
+        {
+            if (_synthCrashSound != null)
+                _sfxSource.PlayOneShot(_synthCrashSound, 0.95f);
+        }
+
         private void GenerateProceduralSounds()
         {
             _synthChime = CreateTone(880f, 0.18f, true);
             _synthCountdownBeep = CreateTone(520f, 0.14f, false);
             _synthGoBeep = CreateTone(1040f, 0.35f, false);
             _synthWinFanfare = CreateChord(new float[] { 523.25f, 659.25f, 783.99f, 1046.50f }, 1.2f);
+            _synthCrashSound = CreateCrashTone(0.38f);
         }
 
         private static AudioClip CreateTone(float freq, float duration, bool harmonic)
@@ -89,7 +97,29 @@ namespace CyberpunkRacing
             return clip;
         }
 
-        private static AudioClip CreateChord(float[] freqs, float duration)
+        private static AudioClip CreateCrashTone(float duration)
+        {
+            int sampleRate = 44100;
+            int samplesCount = Mathf.CeilToInt(sampleRate * duration);
+            float[] data = new float[samplesCount];
+
+            for (int i = 0; i < samplesCount; i++)
+            {
+                float t = (float)i / sampleRate;
+                float envelope = Mathf.Clamp01(1f - (t / duration));
+                // Suara dentuman benturan (bass drop + noise)
+                float freq = Mathf.Lerp(160f, 45f, t / duration);
+                float sub = Mathf.Sin(2f * Mathf.PI * freq * t);
+                float noise = (Random.value * 2f - 1f) * 0.45f;
+                data[i] = (sub * 0.7f + noise) * envelope * 0.75f;
+            }
+
+            var clip = AudioClip.Create("SynthCrash", samplesCount, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private static AudioClip CreateChord(float[] frequencies, float duration)
         {
             int sampleRate = 44100;
             int samplesCount = Mathf.CeilToInt(sampleRate * duration);
@@ -100,14 +130,14 @@ namespace CyberpunkRacing
                 float t = (float)i / sampleRate;
                 float envelope = Mathf.Clamp01(1f - (t / duration));
                 float sum = 0f;
-                foreach (var f in freqs)
+                foreach (float f in frequencies)
                 {
                     sum += Mathf.Sin(2f * Mathf.PI * f * t);
                 }
-                data[i] = (sum / freqs.Length) * envelope * 0.45f;
+                data[i] = (sum / frequencies.Length) * envelope * 0.45f;
             }
 
-            var clip = AudioClip.Create("FanfareChord", samplesCount, 1, sampleRate, false);
+            var clip = AudioClip.Create("Chord", samplesCount, 1, sampleRate, false);
             clip.SetData(data, 0);
             return clip;
         }

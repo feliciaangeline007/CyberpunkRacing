@@ -36,6 +36,13 @@ namespace CyberpunkRacing
         public float driftLateralGrip = 3.5f;
         public float normalLateralGrip = 18.0f;
 
+        [Header("Sistem Tabrakan & Penalti Kecepatan")]
+        public float crashSpeedLossMin = 0.35f; // Kehilangan 35% kecepatan saat tabrakan menyamping
+        public float crashSpeedLossMax = 0.65f; // Kehilangan hingga 65% kecepatan saat tabrakan frontal
+        public float wallScrapeFriction = 5.5f; // Pengurangan laju saat menggesek dinding terus-menerus
+        public float crashRecoveryDuration = 0.45f; // Jeda pemulihan tenaga setelah tabrakan
+        private float _crashCooldown = 0f;
+
         [Header("Visual Roda & Bodi")]
         public Transform frontLeftWheel;
         public Transform frontRightWheel;
@@ -229,8 +236,14 @@ namespace CyberpunkRacing
             }
             else if (gas > 0.05f && canDrive)
             {
+                if (_crashCooldown > 0f)
+                {
+                    _crashCooldown -= Time.fixedDeltaTime;
+                }
+
                 float speedRatio = Mathf.Clamp01(forwardVelocity / speedCapMs);
-                float effectiveAccel = accelRate * (1f - speedRatio * 0.45f);
+                float crashPenalty = _crashCooldown > 0f ? 0.35f : 1f;
+                float effectiveAccel = accelRate * (1f - speedRatio * 0.45f) * crashPenalty;
 
                 if (forwardVelocity < speedCapMs)
                 {
@@ -289,6 +302,34 @@ namespace CyberpunkRacing
             UpdateEnhancedParticleEmissions();
         }
 
+        private void OnCollisionEnter(Collision collision)
+        {
+            float impactSpeed = collision.relativeVelocity.magnitude;
+            if (impactSpeed < 3.0f) return;
+
+            ContactPoint contact = collision.GetContact(0);
+
+            // Hitung seberapa frontal tabrakan (0 = menyerempet samping, 1 = tabrakan frontal langsung)
+            float frontalFactor = Mathf.Abs(Vector3.Dot(contact.normal, transform.forward));
+            float speedLoss = Mathf.Lerp(crashSpeedLossMin, crashSpeedLossMax, frontalFactor);
+
+            // PERLAMBAT KECEPATAN MOBIL AKIBAT TABRAKAN!
+            _rb.linearVelocity *= (1f - speedLoss);
+
+            // Batalkan Nitro jika sedang aktif saat menabrak
+            if (IsNitroActive)
+            {
+                currentNitro = Mathf.Max(0f, currentNitro - 15f);
+            }
+
+            _crashCooldown = crashRecoveryDuration;
+
+            // Guncangan kamera & suara benturan
+            float shakeAmt = Mathf.Clamp01(impactSpeed / 24f) * 0.45f;
+            RacingCamera.Instance?.TriggerImpactShake(shakeAmt);
+            CyberSoundManager.Instance?.PlayCrashSound();
+        }
+
         private void OnCollisionStay(Collision collision)
         {
             for (int i = 0; i < collision.contactCount; i++)
@@ -304,7 +345,9 @@ namespace CyberpunkRacing
                     float fwdSpd = Vector3.Dot(_rb.linearVelocity, wallTangent);
                     if (fwdSpd > 0.5f)
                     {
-                        _rb.linearVelocity = wallTangent * (fwdSpd * 0.95f) + Vector3.up * _rb.linearVelocity.y;
+                        // Perlambat laju mobil secara bertahap saat menggesek dinding jalan
+                        float drag = Mathf.Clamp01(1f - wallScrapeFriction * Time.fixedDeltaTime);
+                        _rb.linearVelocity = wallTangent * (fwdSpd * drag) + Vector3.up * _rb.linearVelocity.y;
                     }
                     break;
                 }
