@@ -814,8 +814,15 @@ namespace CyberpunkRacing.Editor
             PlayerSettings.companyName = "Lumora";
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
             PlayerSettings.Android.applicationEntry = AndroidApplicationEntry.Activity;
-            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64 | AndroidArchitecture.ARMv7;
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
+
+            // Prioritaskan OpenGLES3 agar bebas crash GPU driver pada perangkat Xiaomi / Mali
+            PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
+            PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new UnityEngine.Rendering.GraphicsDeviceType[] {
+                UnityEngine.Rendering.GraphicsDeviceType.OpenGLES3,
+                UnityEngine.Rendering.GraphicsDeviceType.Vulkan
+            });
 
             var scenes = new List<string>();
             foreach (var s in EditorBuildSettings.scenes)

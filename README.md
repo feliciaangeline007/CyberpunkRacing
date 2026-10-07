@@ -16,7 +16,8 @@ Pemain memacu mobil sport melintasi jalan tol layang neon di tengah megahnya ged
 | **Platform Target** | Android (Mendukung Android 8.0 hingga **Android 16 / API 36**) & PC Standalone |
 | **Orientasi** | Landscape (Sensor Landscape) |
 | **Genre** | Arcade 3D Car Racing / Sci-Fi Synthwave |
-| **Arsitektur CPU** | ARM64 (`arm64-v8a`) via IL2CPP |
+| **Arsitektur CPU** | Universal Dual-Arch: ARM64 (`arm64-v8a`) + ARMv7 (`armeabi-v7a`) via IL2CPP |
+| **Graphics API** | OpenGL ES 3.0 (Utama, Universal Bebas Crash) & Vulkan |
 
 ---
 
@@ -54,11 +55,12 @@ Pemain memacu mobil sport melintasi jalan tol layang neon di tengah megahnya ged
   - ⬛ *Carbon Black*
 - **Panel Pengaturan Terpadu**: Pengaturan Volume Audio, Presets Kualitas Grafis (Low, Medium, High), dan sakelar Sensor Kemudi HP (*Tilt/Gyroscope*).
 
-### 5. 📱 Kompatibilitas Penuh Android 16 (API 36)
-- **Bebas Crash di Android 16 & 15**: Menggunakan arsitektur `UnityPlayerActivity` yang terbukti stabil.
-- **`android:appCategory="game"`**: Menjamin pengecualian dari pemaksaan layout bebas pada layar besar/foldable di Android 16.
-- **Predictive Back Navigation**: Mendukung `android:enableOnBackInvokedCallback="true"`.
-- **Ekstraksi Native Libs**: Mendukung `android:extractNativeLibs="true"` untuk kompatibilitas memory paging ARM64 modern.
+### 5. 📱 Kompatibilitas Menyeluruh Semua HP Android (Termasuk Xiaomi & Android 16)
+- **Solusi Bebas Crash GPU Xiaomi / Mali**: Memprioritaskan **OpenGL ES 3.0** di atas Vulkan untuk menghindari bug fatal driver grafis vendor (`libGLES_mali.so` / `vulkan.adreno.so` SIGSEGV) yang sering terjadi pada HP Xiaomi (MIUI / HyperOS), Infinix, dan Poco.
+- **Dukungan Dual-Arsitektur (ARM64 + ARMv7)**: Mendukung penuh perangkat modern 64-bit serta HP Android 32-bit (seperti seri Redmi entry-level).
+- **Alokasi Memori Besar (`android:largeHeap="true"`)**: Mencegah penutupan paksa aplikasi oleh pengelola RAM agresif bawaan MIUI/HyperOS.
+- **Penanganan Kamera Punch-Hole & Notch**: Mengaktifkan `windowLayoutInDisplayCutoutMode="shortEdges"` dan metadata `notch.config` untuk layar berponi Xiaomi.
+- **Kompatibilitas Android 16 (API 36) & Android 15**: Menggunakan arsitektur `UnityPlayerActivity` yang terbukti stabil, `android:appCategory="game"`, `enableOnBackInvokedCallback="true"`, dan `extractNativeLibs="true"`.
 
 ---
 
