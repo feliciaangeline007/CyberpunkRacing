@@ -6,40 +6,59 @@ using UnityEngine;
 namespace CyberpunkRacing.Editor
 {
     /// <summary>
-    /// Trigger otomatis yang dieksekusi oleh Unity Editor yang sedang berjalan
-    /// begitu script ini terkompilasi.
-    /// Membangun scene Cyberpunk Car Racing dan mem-build APK Android!
+    /// Trigger otomatis yang dieksekusi oleh Unity Editor yang sedang berjalan.
+    /// Membangun scene Cyberpunk Car Racing, mengonfigurasi Icon, dan mem-build APK Android!
     /// </summary>
     [InitializeOnLoad]
     public static class AutoRacingBuildTrigger
     {
-        private const string TriggerPath = "Temp/CyberpunkBuildTrigger.flag";
+        private const string SceneTriggerPath = "Temp/CyberpunkBuildTrigger.flag";
+        private const string ApkTriggerPath = "Temp/CyberpunkBuildAPKTrigger.flag";
         private const string LogPath = "Logs/AutoCyberpunkBuild.log";
 
-        // Domain reload trigger timestamp: 2026-10-07 20:04
         static AutoRacingBuildTrigger()
         {
+            EditorApplication.update -= CheckTrigger;
             EditorApplication.update += CheckTrigger;
         }
 
         private static void CheckTrigger()
         {
-            if (!File.Exists(TriggerPath)) return;
             if (EditorApplication.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode) return;
+
+            bool buildScenes = File.Exists(SceneTriggerPath);
+            bool buildApk = File.Exists(ApkTriggerPath);
+
+            if (!buildScenes && !buildApk) return;
+
+            if (buildScenes)
+            {
+                try { File.Delete(SceneTriggerPath); } catch {}
+            }
+            if (buildApk)
+            {
+                try { File.Delete(ApkTriggerPath); } catch {}
+            }
 
             try
             {
-                File.Delete(TriggerPath);
-                EditorApplication.update -= CheckTrigger;
-
-                string log = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Memulai proses pembuatan scene Cyberpunk...\n";
+                string log = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Trigger terdeteksi! Memulai proses...\n";
                 File.WriteAllText(LogPath, log);
-                Debug.Log("[AutoCyberpunkBuild] Trigger terdeteksi! Membangun scene Cyberpunk Car Racing...");
+                Debug.Log("[AutoCyberpunkBuild] Trigger terdeteksi! Memproses scene dan asset Cyberpunk...");
 
-                // 1. Generate Scene Cyberpunk Main Menu & Highway
+                // 1. Generate Scene Cyberpunk Main Menu & Highway + App Icon
                 CyberpunkRacingBuilder.BuildAll(false);
-                File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SUKSES: Scene Cyberpunk Highway & Main Menu berhasil dibuat ulang dari nol!\n");
+                File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SUKSES: Scene & Icon Cyberpunk berhasil dibuat!\n");
                 Debug.Log("[AutoCyberpunkBuild] SUKSES: Scene Cyberpunk berhasil digenerate!");
+
+                // 2. Jika diminta build APK, jalankan build APK Android
+                if (buildApk)
+                {
+                    File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Memulai proses Build Android APK...\n");
+                    Debug.Log("[AutoCyberpunkBuild] Memulai Build Android APK...");
+                    CyberpunkRacingBuilder.BuildAndroidAPK();
+                    File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SUKSES: Build Android APK selesai!\n");
+                }
             }
             catch (Exception ex)
             {

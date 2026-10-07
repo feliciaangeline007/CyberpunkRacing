@@ -152,6 +152,7 @@ PlayerSettings:
   bundleVersion: 0.1.0
   preloadedAssets:
   - {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  - {fileID: -1202502620358036803, guid: a6ccf257054d244ed9b0d709f7873c35, type: 2}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   xboxOneDisableKinectGpuReservation: 1
@@ -301,7 +302,16 @@ PlayerSettings:
   AndroidAppBundleSizeToValidate: 150
   AndroidReportGooglePlayAppDependencies: 1
   androidSymbolsSizeThreshold: 800
-  m_BuildTargetIcons: []
+  m_BuildTargetIcons:
+  - m_BuildTarget: 
+    m_Icons:
+    - serializedVersion: 2
+      m_Icon: {fileID: 2800000, guid: d3b901a88484439cba91f7a01cd4591a, type: 3}
+      m_Width: 128
+      m_Height: 128
+      m_Kind: 0
+  - m_BuildTarget: Standalone
+    m_Icons: []
   m_BuildTargetPlatformIcons:
   - m_BuildTarget: iPhone
     m_Icons:
@@ -402,7 +412,9 @@ PlayerSettings:
       m_SubKind: App Store
   - m_BuildTarget: Android
     m_Icons:
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: d3b901a88484439cba91f7a01cd4591a, type: 3}
+      - {fileID: 0}
       m_Width: 432
       m_Height: 432
       m_Kind: 2

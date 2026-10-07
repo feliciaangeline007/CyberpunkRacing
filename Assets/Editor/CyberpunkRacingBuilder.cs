@@ -64,6 +64,7 @@ namespace CyberpunkRacing.Editor
                 BuildMainMenuScene(mats);
 
                 RegisterScenes();
+                ConfigureAppIcon();
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
 
@@ -289,6 +290,7 @@ namespace CyberpunkRacing.Editor
                     bldL.name = $"CityTower_L_{i}";
                     float hScaleL = 1.3f + Mathf.Abs(Mathf.Sin(i * 1.5f)) * 1.2f;
                     bldL.transform.localScale = new Vector3(1.4f, hScaleL, 1.4f);
+                    foreach (var col in bldL.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(col);
 
                     // Gedung Kanan
                     GameObject prefabR = buildingPrefabs[(i + 3) % buildingPrefabs.Count];
@@ -298,6 +300,7 @@ namespace CyberpunkRacing.Editor
                     bldR.name = $"CityTower_R_{i}";
                     float hScaleR = 1.2f + Mathf.Abs(Mathf.Cos(i * 1.7f)) * 1.3f;
                     bldR.transform.localScale = new Vector3(1.4f, hScaleR, 1.4f);
+                    foreach (var col in bldR.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(col);
                 }
 
                 // 5. Gerbang Lengkung Holo (Holo Arch)
@@ -433,6 +436,7 @@ namespace CyberpunkRacing.Editor
                     GameObject p = buildingPrefabs[i % buildingPrefabs.Count];
                     var b = Object.Instantiate(p, bPos, Quaternion.Euler(0f, -i * 45f, 0f), root.transform);
                     b.transform.localScale = new Vector3(1.6f, 1.8f, 1.6f);
+                    foreach (var col in b.GetComponentsInChildren<Collider>(true)) DestroyImmediate(col);
                 }
             }
 
@@ -591,6 +595,7 @@ namespace CyberpunkRacing.Editor
                 modelInstance.transform.localPosition = Vector3.zero;
                 modelInstance.transform.localRotation = Quaternion.identity;
                 modelInstance.transform.localScale = Vector3.one;
+                foreach (var col in modelInstance.GetComponentsInChildren<Collider>(true)) DestroyImmediate(col);
             }
             else
             {
@@ -600,6 +605,7 @@ namespace CyberpunkRacing.Editor
                 modelInstance.transform.SetParent(carRoot.transform, false);
                 modelInstance.transform.localPosition = new Vector3(0f, 0.45f, 0f);
                 modelInstance.transform.localScale = new Vector3(1.85f, 0.75f, 4.0f);
+                DestroyImmediate(modelInstance.GetComponent<Collider>());
             }
 
             // Temukan roda di dalam prefab Synty
@@ -722,12 +728,37 @@ namespace CyberpunkRacing.Editor
             }
         }
 
+        // ── APP ICON CONFIGURATION ──────────────────────────────────────────
+        public static void ConfigureAppIcon()
+        {
+            string iconPath = "Assets/Textures/AppIcon/CyberpunkRacing_Icon_512.png";
+            Texture2D icon = AssetDatabase.LoadAssetAtPath<Texture2D>(iconPath);
+            if (icon == null)
+            {
+                Debug.LogWarning($"[CyberpunkRacing] App icon tidak ditemukan di {iconPath}");
+                return;
+            }
+
+            // Atur icon universal untuk semua platform default
+            PlayerSettings.SetIconsForTargetGroup(BuildTargetGroup.Unknown, new Texture2D[] { icon });
+
+            // Atur icon khusus Android
+            PlayerSettings.SetIconsForTargetGroup(BuildTargetGroup.Android, new Texture2D[] { icon });
+
+            // Atur icon untuk Standalone desktop
+            PlayerSettings.SetIconsForTargetGroup(BuildTargetGroup.Standalone, new Texture2D[] { icon });
+
+            AssetDatabase.SaveAssets();
+            Debug.Log("[CyberpunkRacing] ✦ App Icon Cyberpunk Racing berhasil dipasang di PlayerSettings!");
+        }
+
         // ── BUILD ANDROID APK ─────────────────────────────────────────────────
         public static void BuildAndroidAPK()
         {
             Debug.Log("[CyberpunkRacing] Memulai Build Android APK...");
             EnsureFolders();
             RegisterScenes();
+            ConfigureAppIcon();
 
             string apkPath = "Builds/Android/CyberpunkRacing.apk";
 
@@ -756,6 +787,18 @@ namespace CyberpunkRacing.Editor
             if (summary.result == BuildResult.Succeeded)
             {
                 Debug.Log($"[CyberpunkRacing] APK Berhasil di-build: {apkPath} ({summary.totalSize / 1024 / 1024} MB)");
+
+                // Salin juga ke folder Downloads agar mudah diakses langsung oleh user
+                try
+                {
+                    string downloadsPath = "/Users/fabrianivan/Downloads/CyberpunkRacing.apk";
+                    File.Copy(apkPath, downloadsPath, true);
+                    Debug.Log($"[CyberpunkRacing] Salinan APK berhasil dibuat di: {downloadsPath}");
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"[CyberpunkRacing] Gagal menyalin ke folder Downloads: {ex.Message}");
+                }
             }
             else
             {
