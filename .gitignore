@@ -1,0 +1,49 @@
+# Unity generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+.utmp/
+
+# Visual Studio / Rider cache
+.vs/
+.idea/
+*.csproj
+*.sln
+*.slnx
+*.unityproj
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+
+# Unity Asset Store kits (besar, tidak perlu di-push)
+Assets/Standard Assets/
+
+# Terrain data besar
+Assets/*.asset
+
+# Lightmap & GI cache
+Assets/GI/
+Assets/**/LightingData.asset
+Assets/**/*.lightmap
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
+
+# Log debug sementara
+firebase-debug.log
