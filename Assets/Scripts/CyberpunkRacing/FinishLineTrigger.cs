@@ -3,9 +3,11 @@ using UnityEngine;
 namespace CyberpunkRacing
 {
     /// <summary>
-    /// Gerbang Garis Akhir (Finish Line Gate) di Ujung Lintasan Highway.
+    /// Gerbang Garis Finish di ujung lintasan.
     /// Memanggil OnFinishLineCrossed pada RacingGameManager saat mobil melewatinya.
+    /// Pastikan Collider di-set sebagai Trigger di Inspector.
     /// </summary>
+    [RequireComponent(typeof(Collider))]
     public class FinishLineTrigger : MonoBehaviour
     {
         private bool _triggered = false;
@@ -14,11 +16,12 @@ namespace CyberpunkRacing
         {
             if (_triggered) return;
 
-            if (other.CompareTag("Player") || other.GetComponentInParent<CarController>() != null)
-            {
-                _triggered = true;
-                RacingGameManager.Instance?.OnFinishLineCrossed();
-            }
+            // Cek apakah yang masuk adalah mobil pemain
+            CarController car = other.GetComponentInParent<CarController>();
+            if (car == null && !other.CompareTag("Player")) return;
+
+            _triggered = true;
+            RacingGameManager.Instance?.OnFinishLineCrossed();
         }
     }
 }

@@ -16,6 +16,7 @@ namespace CyberpunkRacing
         public enum Tab
         {
             Main,
+            DailyReward,
             Controls,
             Settings
         }
@@ -28,6 +29,7 @@ namespace CyberpunkRacing
         private float _masterVolume = 1f;
         private int _qualityLevel = 2;
         private bool _tiltSteeringEnabled = false;
+        private string _rewardClaimMessage = "";
 
         private bool _stylesReady = false;
         private GUIStyle _titleStyle;
@@ -35,6 +37,11 @@ namespace CyberpunkRacing
         private GUIStyle _btnPrimaryStyle;
         private GUIStyle _btnSecondaryStyle;
         private GUIStyle _bodyStyle;
+        private GUIStyle _cardDayStyle;
+        private GUIStyle _cardRewardStyle;
+        private GUIStyle _cardTitleStyle;
+        private GUIStyle _cardStatusStyle;
+        private GUIStyle _hudBadgeStyle;
 
         private static readonly Color[] PaintColors = new Color[]
         {
@@ -80,6 +87,9 @@ namespace CyberpunkRacing
                 case Tab.Main:
                     DrawMainTab();
                     break;
+                case Tab.DailyReward:
+                    DrawDailyRewardTab();
+                    break;
                 case Tab.Controls:
                     DrawControlsTab();
                     break;
@@ -95,34 +105,50 @@ namespace CyberpunkRacing
             int sh = Screen.height;
 
             // Header Neon Atas
-            float hW = Mathf.Min(700f, sw - 32f);
-            Rect hRect = new Rect((sw - hW) * 0.5f, 20f, hW, 85f);
+            float hW = Mathf.Min(740f, sw - 32f);
+            Rect hRect = new Rect((sw - hW) * 0.5f, 16f, hW, 88f);
             DrawNeonBox(hRect, new Color(0.02f, 0.04f, 0.08f, 0.88f), new Color(0f, 0.95f, 1f, 1f), new Color(1f, 0.1f, 0.85f, 0.8f));
 
-            GUI.Label(new Rect(hRect.x, hRect.y + 10f, hRect.width, 38f), "✦ CYBERPUNK : NEON OVERDRIVE ✦", _titleStyle);
-            GUI.Label(new Rect(hRect.x, hRect.y + 48f, hRect.width, 24f), "HIGH-SPEED ARCADE CAR RACING • HIGHWAY NIGHT RUN", _subStyle);
+            GUI.Label(new Rect(hRect.x, hRect.y + 8f, hRect.width, 32f), "✦ CYBERPUNK : NEON OVERDRIVE ✦", _titleStyle);
+            GUI.Label(new Rect(hRect.x, hRect.y + 40f, hRect.width, 20f), "HIGH-SPEED ARCADE CAR RACING • HIGHWAY NIGHT RUN", _subStyle);
+
+            int credits = DailyRewardManager.GetCredits();
+            bool canClaim = DailyRewardManager.CanClaimToday();
+            string claimAlert = canClaim ? "  •  🎁 [HADIAH HARIAN SIAP KLAIM!]" : "";
+            GUI.Label(new Rect(hRect.x, hRect.y + 62f, hRect.width, 20f), $"💳 CYBER CREDITS: {credits:N0} ¢{claimAlert}", _subStyle);
 
             // Menu Tombol Kiri / Tengah
             float mW = Mathf.Min(380f, sw - 40f);
-            float mH = 360f;
-            Rect mRect = new Rect(28f, sh * 0.5f - mH * 0.45f, mW, mH);
+            float mH = 415f;
+            Rect mRect = new Rect(28f, sh * 0.5f - mH * 0.42f, mW, mH);
             DrawNeonBox(mRect, new Color(0.02f, 0.03f, 0.07f, 0.92f), new Color(0f, 0.95f, 1f, 0.95f), new Color(1f, 0.1f, 0.85f, 0.6f));
 
             float bX = mRect.x + 24f;
             float bW = mRect.width - 48f;
-            float curY = mRect.y + 24f;
-            float bH = 52f;
-            float gap = 12f;
+            float curY = mRect.y + 20f;
+            float bH = 48f;
+            float gap = 10f;
 
             // Tombol Mulai
             Color prevBg = GUI.backgroundColor;
             GUI.backgroundColor = new Color(0f, 0.95f, 1f);
-            if (GUI.Button(new Rect(bX, curY, bW, bH + 4f), "🚀  MULAI BALAPAN", _btnPrimaryStyle))
+            if (GUI.Button(new Rect(bX, curY, bW, bH + 2f), "🚀  MULAI BALAPAN", _btnPrimaryStyle))
             {
-                SceneManager.LoadScene("CyberpunkHighway");
+                RacingGameManager.LoadSceneSafe("CyberpunkHighway");
             }
             GUI.backgroundColor = prevBg;
-            curY += bH + gap + 4f;
+            curY += bH + gap + 2f;
+
+            // Tombol Hadiah Harian
+            string dailyLabel = canClaim ? "🎁  HADIAH HARIAN  [★ KLAIM!]" : "🎁  HADIAH HARIAN";
+            if (canClaim) GUI.backgroundColor = new Color(1f, 0.82f, 0.15f);
+            if (GUI.Button(new Rect(bX, curY, bW, bH), dailyLabel, _btnSecondaryStyle))
+            {
+                _rewardClaimMessage = "";
+                _currentTab = Tab.DailyReward;
+            }
+            GUI.backgroundColor = prevBg;
+            curY += bH + gap;
 
             // Tombol Kontrol
             if (GUI.Button(new Rect(bX, curY, bW, bH), "🎮  PANDUAN KONTROL", _btnSecondaryStyle))
@@ -132,24 +158,24 @@ namespace CyberpunkRacing
             curY += bH + gap;
 
             // Tombol Pengaturan
-            if (GUI.Button(new Rect(bX, curY, bW, bH * 0.9f), "⚙️  PENGATURAN", _btnSecondaryStyle))
+            if (GUI.Button(new Rect(bX, curY, bW, bH * 0.92f), "⚙️  PENGATURAN", _btnSecondaryStyle))
             {
                 _currentTab = Tab.Settings;
             }
-            curY += (bH * 0.9f) + gap;
+            curY += (bH * 0.92f) + gap;
 
             // Ganti Warna Mobil
             string colText = $"🎨  WARNA: {PaintNames[_selectedColorIdx]}";
-            if (GUI.Button(new Rect(bX, curY, bW, bH * 0.85f), colText, _btnSecondaryStyle))
+            if (GUI.Button(new Rect(bX, curY, bW, bH * 0.88f), colText, _btnSecondaryStyle))
             {
                 _selectedColorIdx = (_selectedColorIdx + 1) % PaintColors.Length;
                 ApplyCarPaint(_selectedColorIdx);
                 PlayerPrefs.SetInt("SelectedCarColor", _selectedColorIdx);
             }
-            curY += (bH * 0.85f) + gap;
+            curY += (bH * 0.88f) + gap;
 
             // Tombol Keluar
-            if (GUI.Button(new Rect(bX, curY, bW, bH * 0.8f), "🚪  KELUAR", _btnSecondaryStyle))
+            if (GUI.Button(new Rect(bX, curY, bW, bH * 0.82f), "🚪  KELUAR", _btnSecondaryStyle))
             {
 #if UNITY_EDITOR
                 UnityEditor.EditorApplication.isPlaying = false;
@@ -282,6 +308,144 @@ namespace CyberpunkRacing
             GUI.color = prev;
         }
 
+        private void DrawDailyRewardTab()
+        {
+            float mW = Mathf.Min(780f, Screen.width - 24f);
+            float mH = Mathf.Min(560f, Screen.height - 30f);
+            Rect panel = new Rect((Screen.width - mW) * 0.5f, (Screen.height - mH) * 0.5f, mW, mH);
+            DrawNeonBox(panel, new Color(0.02f, 0.03f, 0.07f, 0.98f), new Color(1f, 0.8f, 0.1f, 1f), new Color(0f, 0.95f, 1f, 0.8f));
+
+            GUI.Label(new Rect(panel.x, panel.y + 14f, panel.width, 34f), "🎁  HADIAH REWARD HARIAN (7-DAY STREAK)", _titleStyle);
+            GUI.Label(new Rect(panel.x, panel.y + 46f, panel.width, 20f), "Login setiap hari untuk klaim Cyber Credits berlimpah dan raih Grand Prize!", _subStyle);
+
+            bool canClaim = DailyRewardManager.CanClaimToday();
+            int currentDay = DailyRewardManager.GetCurrentClaimDay();
+            var rewards = DailyRewardManager.SevenDayRewards;
+
+            // Saldo Saat Ini
+            int credits = DailyRewardManager.GetCredits();
+            GUI.Label(new Rect(panel.x + 24f, panel.y + 68f, panel.width - 48f, 24f), $"💳 Saldo Cyber Credits Kamu: {credits:N0} ¢", _hudBadgeStyle);
+
+            // Kotak Kartu 7 Hari (Baris 1: Hari 1-4, Baris 2: Hari 5-7)
+            float startY = panel.y + 98f;
+            float padX = 24f;
+            float availW = panel.width - (padX * 2);
+
+            // Baris 1: 4 kartu
+            float cardGap = 10f;
+            float cardW4 = (availW - (cardGap * 3)) / 4f;
+            float cardH = 92f;
+
+            for (int i = 0; i < 4; i++)
+            {
+                int day = i + 1;
+                var item = rewards[i];
+                Rect cardRect = new Rect(panel.x + padX + i * (cardW4 + cardGap), startY, cardW4, cardH);
+                DrawRewardCard(cardRect, item, day, currentDay, canClaim);
+            }
+
+            // Baris 2: 3 kartu (Hari 5, 6, 7)
+            float cardW3 = (availW - (cardGap * 2)) / 3f;
+            float startY2 = startY + cardH + 10f;
+            for (int i = 4; i < 7; i++)
+            {
+                int day = i + 1;
+                var item = rewards[i];
+                Rect cardRect = new Rect(panel.x + padX + (i - 4) * (cardW3 + cardGap), startY2, cardW3, cardH);
+                DrawRewardCard(cardRect, item, day, currentDay, canClaim);
+            }
+
+            // Pesan Notifikasi Klaim
+            float actionY = startY2 + cardH + 12f;
+            if (!string.IsNullOrEmpty(_rewardClaimMessage))
+            {
+                GUI.Label(new Rect(panel.x + 20f, actionY, panel.width - 40f, 24f), _rewardClaimMessage, _hudBadgeStyle);
+                actionY += 28f;
+            }
+
+            // Tombol Aksi Klaim
+            float btnW = Mathf.Min(420f, panel.width - 60f);
+            float btnX = (Screen.width - btnW) * 0.5f;
+
+            if (canClaim)
+            {
+                Color prev = GUI.backgroundColor;
+                GUI.backgroundColor = new Color(1f, 0.85f, 0.1f);
+                var todayItem = rewards[currentDay - 1];
+                string claimLabel = $"✨ KLAIM HADIAH HARI KE-{currentDay} (+{todayItem.credits:N0} ¢) ✨";
+                if (GUI.Button(new Rect(btnX, actionY, btnW, 44f), claimLabel, _btnPrimaryStyle))
+                {
+                    if (DailyRewardManager.ClaimToday(out var claimed))
+                    {
+                        CyberSoundManager.Instance?.PlayVictory();
+                        _rewardClaimMessage = $"✦ BERHASIL DIKLAIM: +{claimed.credits:N0} ¢ ({claimed.title})!";
+                    }
+                }
+                GUI.backgroundColor = prev;
+            }
+            else
+            {
+                Color prev = GUI.backgroundColor;
+                GUI.backgroundColor = new Color(0.18f, 0.22f, 0.3f);
+                string waitLabel = $"⏳ SUDAH DIKLAIM HARI INI • RESET: {DailyRewardManager.GetFormattedTimeUntilNextReset()}";
+                GUI.Button(new Rect(btnX, actionY, btnW, 44f), waitLabel, _btnSecondaryStyle);
+                GUI.backgroundColor = prev;
+            }
+
+            // Baris Tombol Bawah
+            float botY = panel.y + panel.height - 48f;
+            float backW = 240f;
+            float backX = panel.x + (panel.width - backW) * 0.5f;
+            if (GUI.Button(new Rect(backX, botY, backW, 38f), "⬅  KEMBALI KE MENU", _btnSecondaryStyle))
+            {
+                _rewardClaimMessage = "";
+                _currentTab = Tab.Main;
+            }
+        }
+
+        private void DrawRewardCard(Rect rect, DailyRewardItem item, int day, int currentDay, bool canClaim)
+        {
+            bool isPast = day < currentDay || (day == currentDay && !canClaim);
+            bool isToday = (day == currentDay && canClaim);
+
+            Color bg;
+            Color border;
+            string status;
+
+            if (isToday)
+            {
+                bg = new Color(0.12f, 0.25f, 0.35f, 0.95f);
+                border = new Color(1f, 0.85f, 0.1f, 1f);
+                status = "★ SIAP KLAIM!";
+            }
+            else if (isPast)
+            {
+                bg = new Color(0.04f, 0.12f, 0.10f, 0.9f);
+                border = new Color(0.2f, 0.8f, 0.4f, 0.8f);
+                status = "✓ SUDAH DIAMBIL";
+            }
+            else
+            {
+                bg = new Color(0.03f, 0.05f, 0.08f, 0.85f);
+                border = new Color(0.2f, 0.3f, 0.4f, 0.5f);
+                status = "🔒 TERKUNCI";
+            }
+
+            DrawNeonBox(rect, bg, border, border);
+
+            string dayTitle = day == 7 ? $"👑 HARI 7 (GRAND PRIZE)" : $"HARI {day}";
+            GUI.Label(new Rect(rect.x + 4f, rect.y + 4f, rect.width - 8f, 18f), dayTitle, _cardDayStyle);
+            GUI.Label(new Rect(rect.x + 4f, rect.y + 24f, rect.width - 8f, 24f), $"{item.icon} +{item.credits:N0} ¢", _cardRewardStyle);
+            GUI.Label(new Rect(rect.x + 4f, rect.y + 48f, rect.width - 8f, 18f), item.title, _cardTitleStyle);
+
+            Color prev = GUI.color;
+            if (isToday) GUI.color = new Color(1f, 0.9f, 0.2f);
+            else if (isPast) GUI.color = new Color(0.3f, 0.9f, 0.4f);
+            else GUI.color = new Color(0.6f, 0.65f, 0.75f);
+            GUI.Label(new Rect(rect.x + 4f, rect.y + 68f, rect.width - 8f, 18f), status, _cardStatusStyle);
+            GUI.color = prev;
+        }
+
         private void EnsureStyles()
         {
             if (_stylesReady) return;
@@ -323,6 +487,46 @@ namespace CyberpunkRacing
                 fontSize = Mathf.Clamp(sh / 48, 13, 17),
                 fontStyle = FontStyle.Bold,
                 alignment = TextAnchor.MiddleCenter
+            };
+
+            _cardDayStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = Mathf.Clamp(sh / 56, 11, 14),
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+                normal = { textColor = new Color(0f, 0.9f, 1f) }
+            };
+
+            _cardRewardStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = Mathf.Clamp(sh / 46, 13, 17),
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+                normal = { textColor = new Color(1f, 0.85f, 0.1f) }
+            };
+
+            _cardTitleStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = Mathf.Clamp(sh / 58, 10, 13),
+                alignment = TextAnchor.MiddleCenter,
+                wordWrap = false,
+                normal = { textColor = Color.white }
+            };
+
+            _cardStatusStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = Mathf.Clamp(sh / 58, 10, 13),
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+                normal = { textColor = Color.white }
+            };
+
+            _hudBadgeStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = Mathf.Clamp(sh / 46, 13, 17),
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+                normal = { textColor = new Color(1f, 0.85f, 0.2f) }
             };
 
             _stylesReady = true;

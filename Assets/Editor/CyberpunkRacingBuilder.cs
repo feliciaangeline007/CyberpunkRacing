@@ -30,6 +30,9 @@ namespace CyberpunkRacing.Editor
 
         public static void GenerateAllBatch() => BuildAll(false);
 
+        [MenuItem("Tools/Cyberpunk Racing/🎨 Konfigurasi URP Pipeline Assets", priority = 5)]
+        public static void ConfigureURPAssetsMenu() => ConfigureURPAssets();
+
         [MenuItem("Tools/Cyberpunk Racing/📦 Build Android APK", priority = 10)]
         public static void BuildAndroidAPKMenu() => BuildAndroidAPK();
 
@@ -65,6 +68,7 @@ namespace CyberpunkRacing.Editor
 
                 RegisterScenes();
                 ConfigureAppIcon();
+                ConfigureURPAssets();
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
 
@@ -382,6 +386,8 @@ namespace CyberpunkRacing.Editor
             // GameManager Balapan
             var gmObj = new GameObject("RacingGameManager");
             var gm = gmObj.AddComponent<RacingGameManager>();
+            gmObj.AddComponent<DailyRewardManager>();
+            gmObj.AddComponent<CyberSoundManager>();
             gm.totalNodes = 22;
             gm.totalRaceTime = 95f;
 
@@ -453,9 +459,11 @@ namespace CyberpunkRacing.Editor
             var camData = camObj.AddComponent<UniversalAdditionalCameraData>();
             camData.renderPostProcessing = true;
 
-            // Main Menu Controller
+            // Main Menu Controller & Managers
             var menuObj = new GameObject("CyberpunkMainMenu");
             var menu = menuObj.AddComponent<CyberpunkMainMenuUI>();
+            menuObj.AddComponent<DailyRewardManager>();
+            menuObj.AddComponent<CyberSoundManager>();
             menu.showcaseCar = car.transform;
             menu.carBodyRenderer = car.GetComponentInChildren<Renderer>();
 
@@ -735,21 +743,59 @@ namespace CyberpunkRacing.Editor
             Texture2D icon = AssetDatabase.LoadAssetAtPath<Texture2D>(iconPath);
             if (icon == null)
             {
-                Debug.LogWarning($"[CyberpunkRacing] App icon tidak ditemukan di {iconPath}");
+                Debug.LogWarning($"[CyberpunkRacing] App icon tidak ditemukan di {iconPath} — icon dilewati.");
                 return;
             }
 
-            // Atur icon universal untuk semua platform default
-            PlayerSettings.SetIconsForTargetGroup(BuildTargetGroup.Unknown, new Texture2D[] { icon });
+            Texture2D[] icons = new Texture2D[] { icon };
 
-            // Atur icon khusus Android
-            PlayerSettings.SetIconsForTargetGroup(BuildTargetGroup.Android, new Texture2D[] { icon });
-
-            // Atur icon untuk Standalone desktop
-            PlayerSettings.SetIconsForTargetGroup(BuildTargetGroup.Standalone, new Texture2D[] { icon });
+            // Gunakan API baru (Unity 6+) — SetIcons(NamedBuildTarget, Texture2D[], IconKind)
+            PlayerSettings.SetIcons(NamedBuildTarget.Unknown,    icons, IconKind.Any);
+            PlayerSettings.SetIcons(NamedBuildTarget.Android,    icons, IconKind.Any);
+            PlayerSettings.SetIcons(NamedBuildTarget.Standalone, icons, IconKind.Any);
 
             AssetDatabase.SaveAssets();
             Debug.Log("[CyberpunkRacing] ✦ App Icon Cyberpunk Racing berhasil dipasang di PlayerSettings!");
+        }
+
+        // ── URP PIPELINE ASSET CONFIGURATION ────────────────────────────────
+        /// <summary>
+        /// Mendaftarkan semua URP pipeline asset (Mobile & PC) ke Quality Settings
+        /// agar keduanya di-include dalam build dan tidak memunculkan warning.
+        /// </summary>
+        public static void ConfigureURPAssets()
+        {
+            string mobileRPPath = "Assets/Settings/Mobile_RPAsset.asset";
+            string pcRPPath     = "Assets/Settings/PC_RPAsset.asset";
+
+            var mobileRP = AssetDatabase.LoadAssetAtPath<UnityEngine.Rendering.RenderPipelineAsset>(mobileRPPath);
+            var pcRP     = AssetDatabase.LoadAssetAtPath<UnityEngine.Rendering.RenderPipelineAsset>(pcRPPath);
+
+            if (mobileRP == null) Debug.LogWarning($"[CyberpunkRacing] Mobile_RPAsset tidak ditemukan di {mobileRPPath}");
+            if (pcRP     == null) Debug.LogWarning($"[CyberpunkRacing] PC_RPAsset tidak ditemukan di {pcRPPath}");
+
+            // Pasang ke Quality Settings per level:
+            // Level 0 = Low (Mobile), Level 1 = Medium (Mobile), Level 2 = High (PC)
+            int currentQuality = QualitySettings.GetQualityLevel();
+            string[] qualityNames = QualitySettings.names;
+            for (int i = 0; i < qualityNames.Length; i++)
+            {
+                bool isMobile = i < 2;
+                var  rpAsset  = isMobile ? mobileRP : pcRP;
+                if (rpAsset != null)
+                {
+                    QualitySettings.SetQualityLevel(i, false);
+                    QualitySettings.renderPipeline = rpAsset;
+                }
+            }
+            QualitySettings.SetQualityLevel(currentQuality, false);
+
+            // Default pipeline asset = Mobile (untuk Android)
+            if (mobileRP != null)
+                GraphicsSettings.defaultRenderPipeline = mobileRP;
+
+            AssetDatabase.SaveAssets();
+            Debug.Log("[CyberpunkRacing] ✦ URP Pipeline Assets berhasil dikonfigurasi di Quality Settings!");
         }
 
         // ── BUILD ANDROID APK ─────────────────────────────────────────────────
@@ -759,6 +805,7 @@ namespace CyberpunkRacing.Editor
             EnsureFolders();
             RegisterScenes();
             ConfigureAppIcon();
+            ConfigureURPAssets();
 
             string apkPath = "Builds/Android/CyberpunkRacing.apk";
 
@@ -766,6 +813,9 @@ namespace CyberpunkRacing.Editor
             PlayerSettings.productName = "Cyberpunk Racing";
             PlayerSettings.companyName = "Lumora";
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
+            PlayerSettings.Android.applicationEntry = AndroidApplicationEntry.Activity;
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
 
             var scenes = new List<string>();
             foreach (var s in EditorBuildSettings.scenes)

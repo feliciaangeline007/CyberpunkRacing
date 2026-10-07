@@ -44,6 +44,11 @@ namespace CyberpunkRacing
 
         private void Awake()
         {
+            if (Instance != null && Instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
             Instance = this;
             GenerateTextures();
         }
@@ -413,14 +418,14 @@ namespace CyberpunkRacing
             if (GUI.Button(new Rect(bx, by + 60f, bw, bh), "↺  ULANGI RACE", _menuBtnStyle))
             {
                 Time.timeScale = 1f;
-                SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+                SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             }
 
             GUI.backgroundColor = new Color(0.3f, 0.35f, 0.45f, 0.9f);
             if (GUI.Button(new Rect(bx, by + 120f, bw, bh), "🏠  MENU UTAMA", _menuBtnStyle))
             {
                 Time.timeScale = 1f;
-                SceneManager.LoadScene("CyberpunkMainMenu");
+                RacingGameManager.LoadSceneSafe("CyberpunkMainMenu");
             }
             GUI.backgroundColor = bg;
         }
@@ -437,7 +442,7 @@ namespace CyberpunkRacing
             GUI.color = prev;
 
             float mw = Mathf.Clamp(sw * 0.45f, 340f, 520f);
-            float mh = Mathf.Clamp(sh * 0.62f, 360f, 480f);
+            float mh = Mathf.Clamp(sh * 0.68f, 380f, 500f);
             Rect box = new Rect((sw - mw) * 0.5f, (sh - mh) * 0.5f, mw, mh);
 
             GUI.color = new Color(0.05f, 0.09f, 0.16f, 0.98f);
@@ -447,31 +452,33 @@ namespace CyberpunkRacing
             string title = gm.PlayerWon ? "🏆 VICTORY!" : "⚡ WAKTU HABIS";
             Color tCol = gm.PlayerWon ? new Color(0f, 0.95f, 1f) : new Color(1f, 0.25f, 0.3f);
             _modalTitleStyle.normal.textColor = tCol;
-            GUI.Label(new Rect(box.x, box.y + 20f, box.width, 42f), title, _modalTitleStyle);
+            GUI.Label(new Rect(box.x, box.y + 16f, box.width, 38f), title, _modalTitleStyle);
 
+            int earnedCredits = gm.PlayerWon ? (300 + gm.collectedNodes * 20) : 0;
             string body = $"Waktu Lap: {gm.ElapsedTime:00.0} detik\n" +
-                          $"Data Nodes Terkumpul: {gm.collectedNodes}/{gm.totalNodes}\n" +
-                          $"Rekor Terbaik: {PlayerPrefs.GetFloat("BestRaceTime", 9999f):00.0} detik";
-            GUI.Label(new Rect(box.x + 20f, box.y + 75f, box.width - 40f, 75f), body, _modalBodyStyle);
+                          $"Data Nodes: {gm.collectedNodes}/{gm.totalNodes}\n" +
+                          $"Rekor Terbaik: {PlayerPrefs.GetFloat("BestRaceTime", 9999f):00.0} detik\n" +
+                          $"Hadiah Balapan: {(gm.PlayerWon ? $"+{earnedCredits:N0} ¢" : "0 ¢")} | Saldo: {DailyRewardManager.GetCredits():N0} ¢";
+            GUI.Label(new Rect(box.x + 20f, box.y + 60f, box.width - 40f, 92f), body, _modalBodyStyle);
 
             float bw = box.width * 0.75f;
-            float bh = 48f;
+            float bh = 46f;
             float bx = box.x + (box.width - bw) * 0.5f;
-            float by = box.y + 165f;
+            float by = box.y + 160f;
 
             Color bg = GUI.backgroundColor;
             GUI.backgroundColor = new Color(0f, 0.85f, 1f, 0.95f);
             if (GUI.Button(new Rect(bx, by, bw, bh), "▶  MAIN LAGI (RESTART)", _menuBtnStyle))
             {
                 Time.timeScale = 1f;
-                SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+                SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             }
 
             GUI.backgroundColor = new Color(0.3f, 0.35f, 0.45f, 0.9f);
             if (GUI.Button(new Rect(bx, by + 62f, bw, bh), "🏠  MENU UTAMA", _menuBtnStyle))
             {
                 Time.timeScale = 1f;
-                SceneManager.LoadScene("CyberpunkMainMenu");
+                RacingGameManager.LoadSceneSafe("CyberpunkMainMenu");
             }
             GUI.backgroundColor = bg;
         }

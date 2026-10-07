@@ -4,8 +4,9 @@ namespace CyberpunkRacing
 {
     /// <summary>
     /// Kamera Mengikuti Mobil Sinematik (Chase Camera) untuk Balap Cyberpunk.
-    /// Dilengkapi FOV Dinamis saat mengebut/nitro dan getaran halus untuk sensasi kecepatan arcade serta getaran benturan saat menabrak.
+    /// FOV dinamis saat mengebut/nitro dan getaran kamera saat tabrakan.
     /// </summary>
+    [RequireComponent(typeof(Camera))]
     public class RacingCamera : MonoBehaviour
     {
         public static RacingCamera Instance { get; private set; }
@@ -28,12 +29,24 @@ namespace CyberpunkRacing
 
         private void Awake()
         {
+            // Singleton guard
+            if (Instance != null && Instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
             Instance = this;
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
         }
 
         private void Start()
         {
             _cam = GetComponent<Camera>();
+
             if (target != null)
             {
                 _car = target.GetComponent<CarController>();
@@ -54,14 +67,24 @@ namespace CyberpunkRacing
         {
             if (target == null) return;
 
-            // 1. Posisi Kamera di belakang mobil
+            // 1. Posisi kamera di belakang mobil
             Vector3 desiredPosition = target.position + target.rotation * offset;
-            transform.position = Vector3.Lerp(transform.position, desiredPosition, positionSmoothness * Time.deltaTime);
+            transform.position = Vector3.Lerp(
+                transform.position, desiredPosition,
+                positionSmoothness * Time.deltaTime);
 
-            // 2. Pandangan ke titik depan mobil
-            Vector3 lookTarget = target.position + target.forward * lookAheadDistance + Vector3.up * 0.9f;
-            Quaternion desiredRotation = Quaternion.LookRotation(lookTarget - transform.position);
-            transform.rotation = Quaternion.Slerp(transform.rotation, desiredRotation, rotationSmoothness * Time.deltaTime);
+            // 2. Pandangan ke titik depan mobil — guard zero-vector agar LookRotation tidak crash
+            Vector3 lookTarget = target.position
+                + target.forward * lookAheadDistance
+                + Vector3.up * 0.9f;
+            Vector3 lookDir = lookTarget - transform.position;
+            if (lookDir.sqrMagnitude > 0.001f)
+            {
+                Quaternion desiredRotation = Quaternion.LookRotation(lookDir);
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation, desiredRotation,
+                    rotationSmoothness * Time.deltaTime);
+            }
 
             // 3. Efek Kecepatan (FOV & Shake)
             if (_cam != null && _car != null)
@@ -70,14 +93,14 @@ namespace CyberpunkRacing
                 if (_car.IsNitroActive) targetFov += nitroFovBonus;
                 _cam.fieldOfView = Mathf.Lerp(_cam.fieldOfView, targetFov, 5f * Time.deltaTime);
 
-                // Redakan guncangan benturan secara bertahap
                 _impactShakeAmount = Mathf.MoveTowards(_impactShakeAmount, 0f, 1.8f * Time.deltaTime);
 
-                // Gabungkan guncangan kecepatan (nitro/drift) dengan guncangan tabrakan
-                float speedShake = _car.IsNitroActive ? shakeIntensity : (_car.IsDrifting ? shakeIntensity * 0.4f : 0f);
+                float speedShake = _car.IsNitroActive
+                    ? shakeIntensity
+                    : (_car.IsDrifting ? shakeIntensity * 0.4f : 0f);
                 float totalShake = speedShake + _impactShakeAmount;
 
-                if (totalShake > 0f)
+                if (totalShake > 0.001f)
                 {
                     float t = Time.unscaledTime * 32f;
                     Vector3 shakeOffset = new Vector3(

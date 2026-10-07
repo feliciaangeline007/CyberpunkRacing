@@ -3,19 +3,19 @@ using UnityEngine;
 namespace CyberpunkRacing
 {
     /// <summary>
-    /// Node Energi / Koin Data Cyberpunk yang mengapung di atas lintasan.
-    /// Memberikan skor, mengisi nitro, dan bersuara denting saat diambil.
+    /// Node Energi / Data yang mengapung di atas lintasan.
+    /// Memberikan nitro dan menambah skor koleksi saat diambil mobil.
     /// </summary>
     public class CollectibleNode : MonoBehaviour
     {
         public float rotateSpeed = 120f;
-        public float bobHeight = 0.25f;
-        public float bobSpeed = 2.5f;
+        public float bobHeight   = 0.25f;
+        public float bobSpeed    = 2.5f;
         public float nitroRefill = 18f;
         public AudioClip pickupAudio;
 
         private Vector3 _initialPosition;
-        private bool _isCollected = false;
+        private bool    _isCollected = false;
 
         private void Start()
         {
@@ -26,8 +26,7 @@ namespace CyberpunkRacing
         {
             if (_isCollected) return;
 
-            float dt = Time.deltaTime;
-            transform.Rotate(Vector3.up, rotateSpeed * dt, Space.World);
+            transform.Rotate(Vector3.up, rotateSpeed * Time.deltaTime, Space.World);
 
             Vector3 pos = _initialPosition;
             pos.y += Mathf.Sin(Time.time * bobSpeed) * bobHeight;
@@ -38,29 +37,25 @@ namespace CyberpunkRacing
         {
             if (_isCollected) return;
 
-            if (other.CompareTag("Player") || other.GetComponentInParent<CarController>() != null)
-            {
-                Collect(other.GetComponentInParent<CarController>());
-            }
+            // Cari CarController satu kali saja, bukan dua kali
+            CarController car = other.GetComponentInParent<CarController>();
+            bool isPlayer     = car != null || other.CompareTag("Player");
+
+            if (!isPlayer) return;
+
+            Collect(car);
         }
 
         private void Collect(CarController car)
         {
             _isCollected = true;
 
-            if (car != null)
-            {
-                car.AddNitro(nitroRefill);
-            }
+            car?.AddNitro(nitroRefill);
 
             if (pickupAudio != null)
-            {
                 AudioSource.PlayClipAtPoint(pickupAudio, transform.position, 0.9f);
-            }
             else
-            {
                 CyberSoundManager.Instance?.PlayDataChime();
-            }
 
             RacingGameManager.Instance?.OnNodeCollected();
             Destroy(gameObject);
