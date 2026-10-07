@@ -18,39 +18,27 @@ namespace CyberpunkRacing.Editor
 
         static AutoRacingBuildTrigger()
         {
-            EditorApplication.delayCall += OnEditorReady;
+            EditorApplication.update += CheckTrigger;
         }
 
-        private static void OnEditorReady()
+        private static void CheckTrigger()
         {
             if (!File.Exists(TriggerPath)) return;
+            if (EditorApplication.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode) return;
 
             try
             {
                 File.Delete(TriggerPath);
-                string log = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Memulai proses pembuatan scene Cyberpunk & build APK...\n";
+                EditorApplication.update -= CheckTrigger;
+
+                string log = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Memulai proses pembuatan scene Cyberpunk...\n";
                 File.WriteAllText(LogPath, log);
                 Debug.Log("[AutoCyberpunkBuild] Trigger terdeteksi! Membangun scene Cyberpunk Car Racing...");
 
                 // 1. Generate Scene Cyberpunk Main Menu & Highway
                 CyberpunkRacingBuilder.BuildAll(false);
-                File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Scene Cyberpunk berhasil digenerate!\n");
-
-                // 2. Build Android APK
-                File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Memulai build Android APK Cyberpunk...\n");
-                CyberpunkRacingBuilder.BuildAndroidAPK();
-
-                string apkPath = "Builds/Android/CyberpunkRacing.apk";
-                if (File.Exists(apkPath))
-                {
-                    long bytes = new FileInfo(apkPath).Length;
-                    File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SUKSES! APK selesai dibuat di {apkPath} ({bytes / (1024 * 1024.0):0.00} MB)!\n");
-                    Debug.Log($"[AutoCyberpunkBuild] SUKSES! APK selesai: {apkPath}");
-                }
-                else
-                {
-                    File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Status: Proses build selesai.\n");
-                }
+                File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SUKSES: Scene Cyberpunk Highway & Main Menu berhasil dibuat ulang dari nol!\n");
+                Debug.Log("[AutoCyberpunkBuild] SUKSES: Scene Cyberpunk berhasil digenerate!");
             }
             catch (Exception ex)
             {

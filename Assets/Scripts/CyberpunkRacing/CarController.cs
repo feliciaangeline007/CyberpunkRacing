@@ -3,34 +3,37 @@ using UnityEngine;
 namespace CyberpunkRacing
 {
     /// <summary>
-    /// Pengendali Mobil Balap Cyberpunk Berkecepatan Tinggi.
-    /// Menggunakan fisika arcade responsif yang stabil, tahan benturan, dan tidak mudah terbalik.
+    /// Pengendali Mobil Balap Cyberpunk Berkecepatan Tinggi (Arcade Muscle Car):
+    /// - Menggunakan fisika arcade responsif yang stabil, anti-terbalik (FreezeRotationX/Z), dan bebas tersangkut.
+    /// - Kontrol manual penuh (W/S/A/D atau Panah), mendukung drift (Space), nitro (Shift/N), dan reset lintasan (R).
+    /// - Aman saat countdown 3-2-1 (mobil tidak meluncur sendiri sebelum 'GO!').
+    /// - Sistem luncur dinding otomatis (Wall Slide) agar mobil tidak macet saat menyenggol pagar neon.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     public class CarController : MonoBehaviour
     {
         [Header("Performa & Mesin")]
-        public float acceleration = 24f;
-        public float maxSpeedKmh = 145f;
-        public float maxReverseKmh = 35f;
-        public float steerAngle = 36f;
-        public float steerSpeed = 8f;
-        public float brakeStrength = 28f;
-        public float downforce = 18f;
-        public bool autoThrottle = true; // Gaya Asphalt: selalu maju jika tidak rem
+        public float acceleration = 26f;
+        public float maxSpeedKmh = 160f;
+        public float maxReverseKmh = 40f;
+        public float steerAngle = 40f;
+        public float steerSpeed = 12f;
+        public float brakeStrength = 36f;
+        public float downforce = 22f;
+        public bool autoThrottle = false; // Default: Manual kontrol (W / Panah Atas)
 
         [Header("Sistem Nitro")]
         public float maxNitro = 100f;
         public float currentNitro = 100f;
-        public float nitroSpeedMultiplier = 1.45f; // Hingga ~210 KM/H
+        public float nitroSpeedMultiplier = 1.45f; // Hingga ~232 KM/H
         public float nitroAccelMultiplier = 1.85f;
-        public float nitroDrainRate = 32f;
-        public float nitroRegenRate = 10f;
+        public float nitroDrainRate = 30f;
+        public float nitroRegenRate = 12f;
 
         [Header("Drift & Handling")]
-        public float driftSteerMultiplier = 1.6f;
-        public float driftLateralGrip = 3.2f;
-        public float normalLateralGrip = 9.5f;
+        public float driftSteerMultiplier = 1.65f;
+        public float driftLateralGrip = 3.5f;
+        public float normalLateralGrip = 18.0f; // Cengkeraman kuat saat mengemudi normal (tidak licin)
 
         [Header("Visual Roda & Bodi")]
         public Transform frontLeftWheel;
@@ -42,7 +45,7 @@ namespace CyberpunkRacing
         [Header("Audio")]
         public AudioSource engineAudio;
         public float minPitch = 0.85f;
-        public float maxPitch = 2.4f;
+        public float maxPitch = 2.45f;
 
         [Header("Keselamatan Lintasan")]
         public float fallRespawnY = -8f;
@@ -77,6 +80,9 @@ namespace CyberpunkRacing
             _rb.interpolation = RigidbodyInterpolation.Interpolate;
             _rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
+            // KUNCI: Kunci rotasi X dan Z agar mobil tidak pernah terbalik atau jungkir balik!
+            _rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+
             RecordSafePosition();
             SetupVisualEffects();
         }
@@ -92,6 +98,12 @@ namespace CyberpunkRacing
 
         private void Update()
         {
+            // Input manual reset lintasan (R)
+            if (CarInputManager.Instance != null && CarInputManager.Instance.ResetRequested)
+            {
+                RespawnToSafePosition();
+            }
+
             UpdateAudio();
             AnimateWheelsAndBody();
         }
@@ -111,14 +123,24 @@ namespace CyberpunkRacing
             bool nitroWanted = input != null && input.Nitro;
             bool handbrake = input != null && input.Handbrake;
 
-            // Mode Auto Throttle (Asphalt arcade)
+            // Mode Auto Throttle opsional
             if (autoThrottle && !brake && Mathf.Abs(gas) < 0.05f)
             {
                 gas = 1f;
             }
 
+            // KUNCI PERBAIKAN GAMEPLAY: Kunci mobil saat fase COUNTDOWN atau FINISHED
+            var gm = RacingGameManager.Instance;
+            bool canDrive = gm == null || gm.State == GameState.Racing;
+            if (!canDrive)
+            {
+                gas = 0f;
+                brake = true;
+                nitroWanted = false;
+            }
+
             // Status Nitro
-            IsNitroActive = nitroWanted && currentNitro > 2f && gas > 0.05f && !brake;
+            IsNitroActive = canDrive && nitroWanted && currentNitro > 2f && gas > 0.05f && !brake;
             if (IsNitroActive)
             {
                 currentNitro = Mathf.Max(0f, currentNitro - nitroDrainRate * Time.fixedDeltaTime);
@@ -128,75 +150,123 @@ namespace CyberpunkRacing
                 currentNitro = Mathf.Min(maxNitro, currentNitro + nitroRegenRate * Time.fixedDeltaTime);
             }
 
-            float currentSpeedMs = _rb.linearVelocity.magnitude;
-            float forwardVelocity = Vector3.Dot(_rb.linearVelocity, transform.forward);
+            Vector3 currentVel = _rb.linearVelocity;
+            float currentSpeedMs = currentVel.magnitude;
+            float forwardVelocity = Vector3.Dot(currentVel, transform.forward);
 
             // Batas kecepatan saat ini
             float speedCapMs = (maxSpeedKmh / 3.6f) * (IsNitroActive ? nitroSpeedMultiplier : 1f);
             float accelRate = acceleration * (IsNitroActive ? nitroAccelMultiplier : 1f);
 
-            // 1. Tenaga Mesin / Rem
+            // 1. Tenaga Mesin / Rem / Mundur
             if (brake)
             {
-                float brakeScale = handbrake ? 0.35f : 1f;
-                Vector3 brakeVector = -_rb.linearVelocity.normalized * brakeStrength * brakeScale * _rb.mass;
-                _rb.AddForce(brakeVector, ForceMode.Force);
-            }
-            else if (gas > 0.05f)
-            {
-                if (forwardVelocity < speedCapMs)
+                // Jika sedang melaju maju kencang: rem kuat
+                if (forwardVelocity > 1.2f)
                 {
-                    _rb.AddForce(transform.forward * (gas * accelRate * _rb.mass), ForceMode.Force);
+                    float bScale = handbrake ? 0.45f : 1.0f;
+                    Vector3 brakeForce = -transform.forward * (brakeStrength * bScale * _rb.mass);
+                    _rb.AddForce(brakeForce, ForceMode.Force);
+                }
+                // Jika mobil sudah berhenti atau mundur: mundur secara halus
+                else if (canDrive && gas < -0.1f)
+                {
+                    float reverseCap = maxReverseKmh / 3.6f;
+                    if (forwardVelocity > -reverseCap)
+                    {
+                        _rb.AddForce(-transform.forward * (acceleration * 0.7f * _rb.mass), ForceMode.Force);
+                    }
                 }
             }
-            else if (gas < -0.05f)
+            else if (gas > 0.05f && canDrive)
             {
-                float reverseCap = maxReverseKmh / 3.6f;
-                if (forwardVelocity > 0.5f)
+                // Kurva akselerasi halus: semakin mendekati kecepatan puncak, akselerasi melandai alami
+                float speedRatio = Mathf.Clamp01(forwardVelocity / speedCapMs);
+                float effectiveAccel = accelRate * (1f - speedRatio * 0.45f);
+
+                if (forwardVelocity < speedCapMs)
+                {
+                    _rb.AddForce(transform.forward * (gas * effectiveAccel * _rb.mass), ForceMode.Force);
+                }
+            }
+            else if (gas < -0.05f && canDrive)
+            {
+                // Tekan S / Panah Bawah: Rem dulu jika maju, mundur jika berhenti
+                if (forwardVelocity > 0.8f)
                 {
                     _rb.AddForce(-transform.forward * (brakeStrength * _rb.mass), ForceMode.Force);
                 }
-                else if (forwardVelocity > -reverseCap)
+                else
                 {
-                    _rb.AddForce(transform.forward * (gas * acceleration * 0.65f * _rb.mass), ForceMode.Force);
+                    float reverseCap = maxReverseKmh / 3.6f;
+                    if (forwardVelocity > -reverseCap)
+                    {
+                        _rb.AddForce(transform.forward * (gas * acceleration * 0.65f * _rb.mass), ForceMode.Force);
+                    }
                 }
             }
             else
             {
-                // Hambatan udara alami
-                _rb.linearVelocity = Vector3.MoveTowards(_rb.linearVelocity, Vector3.zero, 3.5f * Time.fixedDeltaTime);
+                // Hambatan gelinding alami (coasting drag)
+                Vector3 flatVel = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
+                Vector3 damped = Vector3.MoveTowards(flatVel, Vector3.zero, 3.2f * Time.fixedDeltaTime);
+                _rb.linearVelocity = new Vector3(damped.x, _rb.linearVelocity.y, damped.z);
             }
 
-            // 2. Kemudi & Drifting
-            IsDrifting = (handbrake || (brake && Mathf.Abs(steer) > 0.2f)) && currentSpeedMs > 6f;
-            float steerMult = IsDrifting ? driftSteerMultiplier : 1f;
+            // 2. Kemudi Responsif & Belok Berkecepatan Tinggi
+            IsDrifting = (handbrake || (brake && Mathf.Abs(steer) > 0.15f)) && currentSpeedMs > 5.5f;
+            float steerMult = IsDrifting ? driftSteerMultiplier : 1.0f;
             _currentSteer = Mathf.Lerp(_currentSteer, steer * steerMult, steerSpeed * Time.fixedDeltaTime);
 
-            if (currentSpeedMs > 0.3f)
+            if (currentSpeedMs > 0.25f)
             {
-                float turnDirection = Mathf.Sign(forwardVelocity);
-                float turnAngle = _currentSteer * steerAngle * turnDirection * Time.fixedDeltaTime;
-                transform.Rotate(Vector3.up, turnAngle);
+                float turnDir = Mathf.Sign(forwardVelocity);
+                if (Mathf.Abs(forwardVelocity) < 0.2f) turnDir = 1f;
+
+                // Dinamika belok adaptif: di kecepatan tinggi tetap bisa bermanuver di tikungan tol
+                float speedFactor = Mathf.Clamp(1.2f - (currentSpeedMs / (maxSpeedKmh / 3.6f)) * 0.35f, 0.72f, 1.25f);
+                float turnAngle = _currentSteer * steerAngle * turnDir * speedFactor * Time.fixedDeltaTime;
+
+                // Gunakan MoveRotation agar sinkron dengan PhysX interpolation
+                Quaternion deltaRot = Quaternion.Euler(0f, turnAngle, 0f);
+                _rb.MoveRotation(_rb.rotation * deltaRot);
             }
 
-            // 3. Gaya Cengkeram Samping (Lateral Grip)
-            Vector3 sideVelocity = transform.right * Vector3.Dot(_rb.linearVelocity, transform.right);
-            float grip = IsDrifting ? driftLateralGrip : normalLateralGrip;
-            _rb.AddForce(-sideVelocity * grip * _rb.mass * Time.fixedDeltaTime, ForceMode.Impulse);
+            // 3. Cengkeraman Samping (Lateral Grip) - Menghilangkan efek 'meluncur di atas es'
+            Vector3 localVel = transform.InverseTransformDirection(_rb.linearVelocity);
+            float gripSpeed = IsDrifting ? driftLateralGrip : normalLateralGrip;
+            localVel.x = Mathf.MoveTowards(localVel.x, 0f, gripSpeed * Time.fixedDeltaTime * 15f);
+            _rb.linearVelocity = transform.TransformDirection(localVel);
 
-            // 4. Downforce (Menjaga ban menempel pada aspal)
-            _rb.AddForce(-Vector3.up * (downforce * currentSpeedMs * _rb.mass * 0.05f), ForceMode.Force);
-
-            // 5. Stabilisator Anti-Terbalik
-            Vector3 rot = transform.eulerAngles;
-            if (rot.z > 35f && rot.z < 325f)
-            {
-                rot.z = Mathf.MoveTowardsAngle(rot.z, 0f, 75f * Time.fixedDeltaTime);
-                transform.eulerAngles = rot;
-            }
+            // 4. Downforce (Menjaga mobil tetap menempel di aspal saat melaju kencang)
+            _rb.AddForce(-Vector3.up * (downforce * currentSpeedMs * _rb.mass * 0.04f), ForceMode.Force);
 
             // Update Efek Partikel
             UpdateParticleEmissions();
+        }
+
+        private void OnCollisionStay(Collision collision)
+        {
+            // SISTEM WALL-SLIDE: Jika mobil menyenggol pagar pembatas tol layang,
+            // alihkan kecepatannya di sepanjang dinding agar tidak macet / tersendat!
+            for (int i = 0; i < collision.contactCount; i++)
+            {
+                var contact = collision.GetContact(i);
+                if (Mathf.Abs(contact.normal.y) < 0.45f)
+                {
+                    Vector3 wallTangent = Vector3.Cross(contact.normal, Vector3.up);
+                    if (Vector3.Dot(wallTangent, transform.forward) < 0f)
+                    {
+                        wallTangent = -wallTangent;
+                    }
+                    float fwdSpd = Vector3.Dot(_rb.linearVelocity, wallTangent);
+                    if (fwdSpd > 0.5f)
+                    {
+                        _rb.linearVelocity = wallTangent * (fwdSpd * 0.95f) + Vector3.up * _rb.linearVelocity.y;
+                    }
+                    break;
+                }
+            }
         }
 
         private void UpdateParticleEmissions()
@@ -224,13 +294,13 @@ namespace CyberpunkRacing
 
         private void CheckTrackSafety()
         {
-            // Jika mobil masih menapak aspal jalan, perbarui posisi aman
+            // Jika mobil masih menapak aspal jalan, simpan posisi aman
             if (Physics.Raycast(transform.position + Vector3.up * 0.5f, Vector3.down, 3.5f))
             {
                 RecordSafePosition();
             }
 
-            // Jika mobil jatuh di bawah batas jurang, kembalikan ke lintasan
+            // Jika mobil jatuh di bawah batas jurang, kembalikan otomatis ke lintasan
             if (transform.position.y < fallRespawnY)
             {
                 RespawnToSafePosition();
@@ -247,8 +317,10 @@ namespace CyberpunkRacing
         {
             _rb.linearVelocity = Vector3.zero;
             _rb.angularVelocity = Vector3.zero;
-            transform.SetPositionAndRotation(_lastSafePosition + Vector3.up * 0.5f, _lastSafeRotation);
+            transform.SetPositionAndRotation(_lastSafePosition + Vector3.up * 0.6f, _lastSafeRotation);
             _currentSteer = 0f;
+            // Beri dorongan awal lembut searah lintasan
+            _rb.AddForce(transform.forward * 5f, ForceMode.VelocityChange);
         }
 
         public void AddNitro(float amount)
@@ -282,7 +354,11 @@ namespace CyberpunkRacing
         private void UpdateAudio()
         {
             if (engineAudio == null) return;
-            float ratio = SpeedRatio;
+            var input = CarInputManager.Instance;
+            float gasInput = input != null ? Mathf.Abs(input.Throttle) : 0f;
+
+            // Berikan feedback suara revving mesin jika gas ditekan saat diam / countdown
+            float ratio = Mathf.Max(SpeedRatio, gasInput * 0.45f);
             engineAudio.pitch = Mathf.Lerp(minPitch, maxPitch, ratio);
         }
 

@@ -35,6 +35,21 @@ namespace CyberpunkRacing.Editor
 
         public static void BuildAll(bool showDialog = true)
         {
+            if (EditorApplication.isPlaying || EditorApplication.isPaused || EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                EditorApplication.isPlaying = false;
+                void OnPlayState(PlayModeStateChange state)
+                {
+                    if (state == PlayModeStateChange.EnteredEditMode)
+                    {
+                        EditorApplication.playModeStateChanged -= OnPlayState;
+                        EditorApplication.delayCall += () => BuildAll(showDialog);
+                    }
+                }
+                EditorApplication.playModeStateChanged += OnPlayState;
+                return;
+            }
+
             try
             {
                 if (showDialog) EditorUtility.DisplayProgressBar("Cyberpunk Racing Builder", "Menyiapkan material & shader URP...", 0.1f);
@@ -137,6 +152,25 @@ namespace CyberpunkRacing.Editor
             return mat;
         }
 
+        private static PhysicsMaterial GetOrCreateFrictionlessPhysMat()
+        {
+            string path = $"{MatPath}/Mat_ZeroFriction.physicsMaterial";
+            PhysicsMaterial pm = AssetDatabase.LoadAssetAtPath<PhysicsMaterial>(path);
+            if (pm == null)
+            {
+                pm = new PhysicsMaterial("FrictionlessPhysMat")
+                {
+                    dynamicFriction = 0f,
+                    staticFriction = 0f,
+                    bounciness = 0.05f,
+                    frictionCombine = PhysicsMaterialCombine.Minimum,
+                    bounceCombine = PhysicsMaterialCombine.Average
+                };
+                AssetDatabase.CreateAsset(pm, path);
+            }
+            return pm;
+        }
+
         // ── 1. GAMEPLAY SCENE: CYBERPUNK HIGHWAY ──────────────────────────────
         private static void BuildHighwayScene(CyberMats m)
         {
@@ -163,6 +197,7 @@ namespace CyberpunkRacing.Editor
             coinsRoot.transform.SetParent(worldRoot.transform);
 
             AudioClip coinClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/CoinPickup.wav");
+            PhysicsMaterial smoothPhysMat = GetOrCreateFrictionlessPhysMat();
 
             // Daftar prefab gedung bertingkat 3D Synty
             List<GameObject> buildingPrefabs = LoadBuildingPrefabs();
@@ -207,6 +242,7 @@ namespace CyberpunkRacing.Editor
                 railL.transform.rotation = segRot;
                 railL.transform.localScale = new Vector3(0.55f, 2.0f, 13f);
                 railL.GetComponent<Renderer>().sharedMaterial = m.NeonCyan;
+                railL.GetComponent<BoxCollider>().sharedMaterial = smoothPhysMat;
 
                 // 3. Rel Neon Kanan (Magenta)
                 var railR = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -216,6 +252,7 @@ namespace CyberpunkRacing.Editor
                 railR.transform.rotation = segRot;
                 railR.transform.localScale = new Vector3(0.55f, 2.0f, 13f);
                 railR.GetComponent<Renderer>().sharedMaterial = m.NeonMagenta;
+                railR.GetComponent<BoxCollider>().sharedMaterial = smoothPhysMat;
 
                 // Pilar Penyangga Jalan Tol Layang di Bawah
                 if (i % 3 == 0)
@@ -311,9 +348,11 @@ namespace CyberpunkRacing.Editor
             // 7. MOBIL BALAP 3D NYATA (Synty Muscle Car)
             float spawnZ = 6f;
             float spawnX = Mathf.Sin(spawnZ * 0.02f) * 22f + Mathf.Cos(spawnZ * 0.05f) * 8f;
-            GameObject carObj = BuildCyberCar(new Vector3(spawnX, 0.05f, spawnZ), m);
-            float spawnDx = Mathf.Cos(spawnZ * 0.02f) * 0.44f - Mathf.Sin(spawnZ * 0.05f) * 0.4f;
-            carObj.transform.rotation = Quaternion.Euler(0f, Mathf.Atan2(spawnDx, 1f) * Mathf.Rad2Deg, 0f);
+            GameObject carObj = BuildCyberCar(new Vector3(spawnX, 0.45f, spawnZ), m);
+            float nextSpawnZ = spawnZ + 2f;
+            float nextSpawnX = Mathf.Sin(nextSpawnZ * 0.02f) * 22f + Mathf.Cos(nextSpawnZ * 0.05f) * 8f;
+            Vector3 trackForward = (new Vector3(nextSpawnX, 0f, nextSpawnZ) - new Vector3(spawnX, 0f, spawnZ)).normalized;
+            carObj.transform.rotation = Quaternion.LookRotation(trackForward);
             var carController = carObj.GetComponent<CarController>();
 
             // Kamera Pelacak Sinematik
@@ -587,10 +626,19 @@ namespace CyberpunkRacing.Editor
             underglow.GetComponent<Renderer>().sharedMaterial = m.NeonCyan;
             DestroyImmediate(underglow.GetComponent<Collider>());
 
-            // Collider Fisika
+            // Collider Fisika Bebas Hambatan Dinding
+            var smoothMat = GetOrCreateFrictionlessPhysMat();
+
             var boxCol = carRoot.AddComponent<BoxCollider>();
             boxCol.center = new Vector3(0f, 0.55f, 0f);
-            boxCol.size = new Vector3(1.95f, 1.1f, 4.3f);
+            boxCol.size = new Vector3(1.85f, 1.0f, 4.0f);
+            boxCol.sharedMaterial = smoothMat;
+
+            // Bumper Bulat Depan (Mencegah sudut tajam tersangkut pada sambungan pagar tol)
+            var bumperCol = carRoot.AddComponent<SphereCollider>();
+            bumperCol.center = new Vector3(0f, 0.45f, 1.6f);
+            bumperCol.radius = 0.8f;
+            bumperCol.sharedMaterial = smoothMat;
 
             // Audio Mesin
             var audio = carRoot.AddComponent<AudioSource>();
