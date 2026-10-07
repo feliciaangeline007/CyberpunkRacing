@@ -657,6 +657,7 @@ namespace CyberpunkRacing.Editor
             ctrl.rearRightWheel = rr;
             ctrl.carBodyVisual = modelInstance.transform;
             ctrl.engineAudio = audio;
+            ctrl.autoThrottle = true;
 
             return carRoot;
         }

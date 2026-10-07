@@ -266,10 +266,10 @@ namespace CyberpunkRacing
             string swipeLabel = (CarInputManager.Instance != null && CarInputManager.Instance.IsGyroActive) ? "📱 TILT STEER" : "👈 SWIPE BELOK 👉";
             GUI.Label(swipeBarRect, swipeLabel, _hintTextStyle);
 
-            // Gambar Tombol Gas
-            GUI.color = gasDown ? new Color(0.2f, 1f, 0.4f, 0.95f) : new Color(0f, 0.9f, 0.95f, 0.85f);
+            // Gambar Tombol Gas (Auto-Gas aktif)
+            GUI.color = gasDown ? new Color(0.2f, 1f, 0.4f, 0.95f) : new Color(0f, 0.9f, 0.95f, 0.9f);
             GUI.DrawTexture(gasRect, _pedalGasTex);
-            GUI.Label(gasRect, "⮅\nGAS", _btnTextStyle);
+            GUI.Label(gasRect, "⮅\nAUTO\nGAS", _btnTextStyle);
 
             // Gambar Tombol Rem
             GUI.color = brakeDown ? new Color(1f, 0.25f, 0.25f, 0.95f) : new Color(0.9f, 0.2f, 0.4f, 0.85f);
@@ -354,7 +354,7 @@ namespace CyberpunkRacing
             GUI.DrawTexture(hintRect, _whiteBarTex);
             GUI.color = prev;
 
-            GUI.Label(hintRect, "KONTROL PC: [W / ↑] Gas  •  [S / ↓] Rem / Mundur  •  [A / D] Belok  •  [SPACE] Drift  •  [SHIFT] Nitro  •  [R] Reset Lintasan  •  [ESC] Jeda", _hintTextStyle);
+            GUI.Label(hintRect, "🏎️ AUTO-GAS AKTIF  •  [A / D / SWIPE] Belok  •  [SPACE / REM] Drift  •  [SHIFT] Nitro  •  [R] Reset  •  [ESC] Jeda", _hintTextStyle);
         }
 
         // ── 5. Countdown Overlay (3-2-1-GO) ────────────────────────────────────

@@ -21,7 +21,7 @@ namespace CyberpunkRacing
         public float steerSpeed = 12f;
         public float brakeStrength = 36f;
         public float downforce = 22f;
-        public bool autoThrottle = false;
+        public bool autoThrottle = true; // Auto jalan maju aktif! (Asphalt Arcade)
 
         [Header("Sistem Nitro")]
         public float maxNitro = 100f;
@@ -176,11 +176,6 @@ namespace CyberpunkRacing
             bool nitroWanted = input != null && input.Nitro;
             bool handbrake = input != null && input.Handbrake;
 
-            if (autoThrottle && !brake && Mathf.Abs(gas) < 0.05f)
-            {
-                gas = 1f;
-            }
-
             // Kunci mobil saat fase COUNTDOWN atau FINISHED
             var gm = RacingGameManager.Instance;
             bool canDrive = gm == null || gm.State == GameState.Racing;
@@ -189,6 +184,11 @@ namespace CyberpunkRacing
                 gas = 0f;
                 brake = true;
                 nitroWanted = false;
+            }
+            else if (autoThrottle && !brake && gas >= -0.05f)
+            {
+                // Mode Auto-Throttle: mobil otomatis maju terus saat balapan berjalan!
+                gas = 1f;
             }
 
             // Status Nitro
