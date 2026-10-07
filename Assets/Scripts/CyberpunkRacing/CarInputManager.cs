@@ -10,17 +10,19 @@ namespace CyberpunkRacing
     /// Input terpusat untuk Mobil Cyberpunk:
     /// - Keyboard PC (W/A/S/D atau Panah, Space untuk Drift, Shift/N untuk Nitro, R untuk Reset)
     /// - Gamepad / Stik Konsol (Triggers untuk Gas/Rem, Stick untuk Belok, Tombol Drift/Nitro)
-    /// - Tombol Layar Sentuh Mobile (Pedal Gas, Rem, Nitro, Kemudi Kiri/Kanan, Reset)
-    /// - Sensor Kemiringan Opsional (Gyro Tilt Steering)
+    /// - Swipe Gesture Steering: Usap layar sentuh kiri/kanan jika gyroscope tidak aktif atau tidak tersedia.
+    /// - Gyroscope / Tilt Steering: Kemiringan HP jika didukung dan diaktifkan di Pengaturan.
+    /// - Tombol Sentuh On-Screen: Gas, Rem, Nitro, Reset.
     /// </summary>
     public class CarInputManager : MonoBehaviour
     {
         public static CarInputManager Instance { get; private set; }
 
-        [Header("Pengaturan Tilt Steering")]
+        [Header("Pengaturan Kemudi Mobile")]
         public bool useTiltSteering = false;
         public float tiltSensitivity = 28f;
         public bool invertTilt = false;
+        public float swipeSensitivity = 140f; // Jarak piksel geser layar untuk 100% belok
 
         // Nilai input aktif
         public float Throttle { get; private set; }
@@ -30,13 +32,23 @@ namespace CyberpunkRacing
         public bool Handbrake { get; private set; }
         public bool ResetRequested { get; private set; }
 
+        // Properti status kemudi untuk HUD
+        public bool IsGyroActive => useTiltSteering && HasGyroscopeSupport();
+        public float CurrentSwipeOffset { get; private set; } = 0f;
+
         // Tombol Touch On-Screen (diatur dari HUD)
         public static float TouchThrottleInput = 0f;
-        public static float TouchSteerInput = 0f;
+        public static float TouchSteerButtonInput = 0f;
         public static bool TouchBrakeHeld = false;
         public static bool TouchNitroHeld = false;
         public static bool TouchResetTriggered = false;
 
+        // Status Swipe Gesture
+        private bool _isSwiping = false;
+        private Vector2 _swipeStartPos;
+        private float _currentSwipeSteer = 0f;
+
+        // Status Tilt / Gyro
         private float _tiltBiasAngle = 0f;
         private bool _tiltCalibrated = false;
         private float _smoothedTiltSteer = 0f;
@@ -44,7 +56,9 @@ namespace CyberpunkRacing
         private void Awake()
         {
             Instance = this;
-            useTiltSteering = PlayerPrefs.GetInt("UseTiltSteering", 0) == 1;
+            // Cek apakah pemain mengaktifkan gyro di pengaturan DAN perangkat mendukungnya
+            bool gyroPref = PlayerPrefs.GetInt("UseTiltSteering", 0) == 1;
+            useTiltSteering = gyroPref && HasGyroscopeSupport();
         }
 
         private void Update()
@@ -108,23 +122,34 @@ namespace CyberpunkRacing
             catch {}
 #endif
 
-            // 2. Gabungkan Touch On-Screen (Mobile Pedals & Buttons)
+            // 2. Kemudi Mobile: Cek Gyroscope VS Swipe Gesture
+            float mobileSteer = 0f;
+
+            if (IsGyroActive)
+            {
+                // Mode Sensor Miring (Gyroscope)
+                mobileSteer = ReadTiltSteer();
+            }
+            else
+            {
+                // MODE UTAMA KETIKA TIDAK ADA GYROSCOPE: SWIPE GESTURE STEERING!
+                mobileSteer = ProcessSwipeGestureSteering();
+            }
+
+            // Jika ada tombol tap kemudi kiri/kanan ditekan, prioritaskan
+            if (Mathf.Abs(TouchSteerButtonInput) > 0.1f)
+            {
+                mobileSteer = TouchSteerButtonInput;
+            }
+
+            // Gabungkan kemudi hardware (keyboard/gamepad) dengan mobile
+            float finalSteer = Mathf.Abs(hardwareSteer) > 0.05f ? hardwareSteer : mobileSteer;
+
+            // 3. Gabungkan Gas & Rem Sentuh
             float finalGas = hardwareGas;
             if (Mathf.Abs(TouchThrottleInput) > 0.01f)
             {
                 finalGas = TouchThrottleInput;
-            }
-
-            float finalSteer = hardwareSteer;
-            if (Mathf.Abs(TouchSteerInput) > 0.01f)
-            {
-                finalSteer = TouchSteerInput;
-            }
-
-            // 3. Sensor Kemiringan (Tilt Gyro) jika diaktifkan
-            if (useTiltSteering && Mathf.Abs(hardwareSteer) < 0.05f && Mathf.Abs(TouchSteerInput) < 0.05f)
-            {
-                finalSteer = ReadTiltSteer();
             }
 
             bool finalBrake = hardwareBrake || TouchBrakeHeld;
@@ -134,7 +159,6 @@ namespace CyberpunkRacing
             bool finalHandbrake = hardwareHandbrake || (finalBrake && Mathf.Abs(finalSteer) > 0.3f);
             bool finalReset = hardwareReset || TouchResetTriggered;
 
-            // Reset flag touch one-shot
             TouchResetTriggered = false;
 
             Throttle = Mathf.Clamp(finalGas, -1f, 1f);
@@ -143,6 +167,110 @@ namespace CyberpunkRacing
             Nitro = finalNitro;
             Handbrake = finalHandbrake;
             ResetRequested = finalReset;
+        }
+
+        /// <summary>
+        /// Sistem Kemudi Swipe Gesture:
+        /// Mendeteksi usapan jari di layar secara horizontal (swipe / drag kiri-kanan).
+        /// Begitu jari dilepas, kemudi kembali lurus secara halus.
+        /// </summary>
+        private float ProcessSwipeGestureSteering()
+        {
+            Vector2 touchPos = Vector2.zero;
+            bool touchDown = false;
+            bool touchHeld = false;
+            bool touchUp = false;
+
+#if ENABLE_INPUT_SYSTEM
+            var ts = Touchscreen.current;
+            if (ts != null)
+            {
+                for (int i = 0; i < ts.touches.Count; i++)
+                {
+                    var t = ts.touches[i];
+                    // Zona kemudi: sisi kiri s/d tengah layar (x < Screen.width * 0.65f)
+                    Vector2 p = t.position.ReadValue();
+                    if (p.x < Screen.width * 0.65f && p.y < Screen.height * 0.85f)
+                    {
+                        touchPos = p;
+                        if (t.press.wasPressedThisFrame) touchDown = true;
+                        if (t.isInProgress) touchHeld = true;
+                        if (t.press.wasReleasedThisFrame) touchUp = true;
+                        break;
+                    }
+                }
+            }
+
+            var mouse = Mouse.current;
+            if (!touchHeld && mouse != null && mouse.leftButton.isPressed)
+            {
+                Vector2 mp = mouse.position.ReadValue();
+                if (mp.x < Screen.width * 0.65f && mp.y < Screen.height * 0.85f)
+                {
+                    touchPos = mp;
+                    if (mouse.leftButton.wasPressedThisFrame) touchDown = true;
+                    touchHeld = true;
+                }
+            }
+            if (mouse != null && mouse.leftButton.wasReleasedThisFrame)
+            {
+                touchUp = true;
+            }
+#elif ENABLE_LEGACY_INPUT_MANAGER
+            try
+            {
+                if (Input.touchCount > 0)
+                {
+                    for (int i = 0; i < Input.touchCount; i++)
+                    {
+                        Touch t = Input.GetTouch(i);
+                        if (t.position.x < Screen.width * 0.65f)
+                        {
+                            touchPos = t.position;
+                            if (t.phase == TouchPhase.Began) touchDown = true;
+                            if (t.phase == TouchPhase.Moved || t.phase == TouchPhase.Stationary) touchHeld = true;
+                            if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) touchUp = true;
+                            break;
+                        }
+                    }
+                }
+                else if (Input.GetMouseButton(0))
+                {
+                    if (Input.mousePosition.x < Screen.width * 0.65f)
+                    {
+                        touchPos = Input.mousePosition;
+                        if (Input.GetMouseButtonDown(0)) touchDown = true;
+                        touchHeld = true;
+                    }
+                }
+                if (Input.GetMouseButtonUp(0)) touchUp = true;
+            }
+            catch {}
+#endif
+
+            if (touchDown)
+            {
+                _isSwiping = true;
+                _swipeStartPos = touchPos;
+            }
+
+            if (_isSwiping && touchHeld)
+            {
+                float deltaX = touchPos.x - _swipeStartPos.x;
+                float targetSteer = Mathf.Clamp(deltaX / Mathf.Max(60f, swipeSensitivity), -1f, 1f);
+                _currentSwipeSteer = Mathf.Lerp(_currentSwipeSteer, targetSteer, 18f * Time.deltaTime);
+                CurrentSwipeOffset = _currentSwipeSteer;
+            }
+            else if (touchUp || !touchHeld)
+            {
+                _isSwiping = false;
+                // Kembali ke posisi tengah saat jari dilepas
+                _currentSwipeSteer = Mathf.Lerp(_currentSwipeSteer, 0f, 14f * Time.deltaTime);
+                if (Mathf.Abs(_currentSwipeSteer) < 0.01f) _currentSwipeSteer = 0f;
+                CurrentSwipeOffset = _currentSwipeSteer;
+            }
+
+            return _currentSwipeSteer;
         }
 
         private float ReadTiltSteer()
@@ -169,6 +297,11 @@ namespace CyberpunkRacing
 
             _smoothedTiltSteer = Mathf.Lerp(_smoothedTiltSteer, target, 12f * Time.deltaTime);
             return _smoothedTiltSteer;
+        }
+
+        public static bool HasGyroscopeSupport()
+        {
+            return SystemInfo.supportsGyroscope || SystemInfo.supportsAccelerometer;
         }
 
         public void CalibrateTilt()

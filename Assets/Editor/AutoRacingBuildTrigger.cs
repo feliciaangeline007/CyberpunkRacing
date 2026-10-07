@@ -16,6 +16,7 @@ namespace CyberpunkRacing.Editor
         private const string TriggerPath = "Temp/CyberpunkBuildTrigger.flag";
         private const string LogPath = "Logs/AutoCyberpunkBuild.log";
 
+        // Domain reload trigger timestamp: 2026-10-07 20:04
         static AutoRacingBuildTrigger()
         {
             EditorApplication.update += CheckTrigger;

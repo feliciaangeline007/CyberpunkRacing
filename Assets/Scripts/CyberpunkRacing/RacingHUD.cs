@@ -225,8 +225,12 @@ namespace CyberpunkRacing
 
             // Kiri Bawah: Tombol KEMUDI Kiri & Kanan
             float steerW = btnSize * 0.95f;
+            float totalSteerW = steerW * 2f + 8f;
             Rect leftRect = new Rect(padEdge, sh - btnSize - padBottom, steerW, btnSize);
             Rect rightRect = new Rect(padEdge + steerW + 8f, sh - btnSize - padBottom, steerW, btnSize);
+
+            // Indikator Holographic Swipe Steering Bar di atas tombol belok
+            Rect swipeBarRect = new Rect(padEdge, sh - btnSize - padBottom - 34f, totalSteerW, 26f);
 
             // Deteksi sentuhan aktif menggunakan New Input System (tanpa error legacy)
             bool gasDown = CheckPointerInRect(gasRect);
@@ -238,12 +242,31 @@ namespace CyberpunkRacing
 
             // Kirim ke Input Manager
             CarInputManager.TouchThrottleInput = gasDown ? 1f : (brakeDown ? -1f : 0f);
-            CarInputManager.TouchSteerInput = Mathf.Clamp(touchSteer, -1f, 1f);
+            CarInputManager.TouchSteerButtonInput = touchSteer;
             CarInputManager.TouchBrakeHeld = brakeDown;
             CarInputManager.TouchNitroHeld = nitroDown;
 
-            // Gambar Tombol Gas
+            // Gambar Indikator Swipe Steering Bar
             Color prev = GUI.color;
+            GUI.color = new Color(0.04f, 0.08f, 0.16f, 0.85f);
+            GUI.DrawTexture(swipeBarRect, _glassHeaderTex);
+
+            // Garis pembagi tengah
+            GUI.color = new Color(0.2f, 0.4f, 0.6f, 0.5f);
+            GUI.DrawTexture(new Rect(swipeBarRect.x + swipeBarRect.width * 0.5f - 1f, swipeBarRect.y + 4f, 2f, swipeBarRect.height - 8f), _whiteBarTex);
+
+            // Kursor posisi swipe aktif
+            float swipeNorm = CarInputManager.Instance != null ? CarInputManager.Instance.CurrentSwipeOffset : 0f;
+            float cursorX = swipeBarRect.x + (swipeBarRect.width * 0.5f) + (swipeNorm * (swipeBarRect.width * 0.42f)) - 8f;
+            Rect cursorRect = new Rect(cursorX, swipeBarRect.y + 3f, 16f, swipeBarRect.height - 6f);
+            GUI.color = Mathf.Abs(swipeNorm) > 0.05f ? new Color(0f, 1f, 0.9f, 0.95f) : new Color(0.4f, 0.7f, 1f, 0.75f);
+            GUI.DrawTexture(cursorRect, _whiteBarTex);
+
+            // Label Swipe
+            string swipeLabel = (CarInputManager.Instance != null && CarInputManager.Instance.IsGyroActive) ? "📱 TILT STEER" : "👈 SWIPE BELOK 👉";
+            GUI.Label(swipeBarRect, swipeLabel, _hintTextStyle);
+
+            // Gambar Tombol Gas
             GUI.color = gasDown ? new Color(0.2f, 1f, 0.4f, 0.95f) : new Color(0f, 0.9f, 0.95f, 0.85f);
             GUI.DrawTexture(gasRect, _pedalGasTex);
             GUI.Label(gasRect, "⮅\nGAS", _btnTextStyle);

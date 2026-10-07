@@ -169,18 +169,21 @@ namespace CyberpunkRacing
             GUI.Label(new Rect(panel.x, panel.y + 16f, panel.width, 36f), "🎮  PANDUAN KONTROL CYBERPUNK", _titleStyle);
 
             string guideText =
-                "📱  KONTROL LAYAR SENTUH (ANDROID):\n" +
-                "  • Kanan Bawah [⮅ GAS] : Melaju kencang (Mode Auto-Throttle juga aktif)\n" +
-                "  • Kanan Bawah [⚡ NITRO] : Boost kecepatan nitro penuh kilatan api\n" +
-                "  • Kiri Bawah [⏹ REM] : Rem dan mundur; tahan saat belok untuk DRIFT\n" +
-                "  • Kiri Bawah [◀ / ▶] : Kemudi belok kiri dan kanan\n" +
+                "📱  KONTROL LAYAR SENTUH (MOBILE / ANDROID):\n" +
+                "  • USAP LAYAR (SWIPE GESTURE) : Usap area kiri layar ke kiri/kanan untuk kemudi halus (Default jika tanpa Gyro!)\n" +
+                "  • Kiri Bawah [◀ / ▶] : Tombol alternatif kemudi belok kiri dan kanan\n" +
+                "  • Kiri Atas [↺ RESET] : Reset posisi mobil ke tengah lintasan jika keluar jalur\n" +
+                "  • Kanan Bawah [⮅ GAS] : Melaju kencang\n" +
+                "  • Kanan Bawah [⚡ NITRO] : Boost kecepatan nitro kilatan api\n" +
+                "  • Kiri Bawah [⮇ REM] : Rem dan mundur; tahan saat belok untuk DRIFT\n" +
                 "  • Sensor TILT (Gyroscope) : Bisa diaktifkan di menu Pengaturan\n\n" +
-                "⌨️  KONTROL KEYBOARD (PC):\n" +
-                "  • W / Panah Atas : Gas maju\n" +
-                "  • S / Panah Bawah : Rem / Mundur\n" +
-                "  • A / D atau Panah Kiri/Kanan : Kemudi belok\n" +
-                "  • SPASI : Handbrake / Rem Tangan & Power Drift\n" +
-                "  • SHIFT / N : Nitro Boost turbo\n\n" +
+                "⌨️  KONTROL KEYBOARD & GAMEPAD (PC):\n" +
+                "  • W / Panah Atas / R-Trigger : Gas maju\n" +
+                "  • S / Panah Bawah / L-Trigger : Rem / Mundur\n" +
+                "  • A / D atau Panah / L-Stick : Kemudi belok\n" +
+                "  • SPASI / Tombol A : Handbrake & Power Drift\n" +
+                "  • SHIFT / N / Tombol X : Nitro Boost turbo\n" +
+                "  • R / Tombol Select : Reset lintasan seketika\n\n" +
                 "🎯  OBJEKTIF BALAPAN:\n" +
                 "Laju melintasi jalan tol neon Metropolis, ambil 25 Data Nodes, dan tembus Garis Finish sebelum waktu habis!";
 
